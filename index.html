@@ -95,6 +95,46 @@
         </div>
     </div>
 
+    <!-- Content Preview Modal -->
+    <div class="modal content-modal hidden" id="contentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📄 Generated File Content</h2>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <button class="copy-btn" id="copyContentBtn">📋 Copy All</button>
+                    <button class="close-btn" id="closeContentModal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="content-info">
+                    <div class="content-info-item">
+                        <div class="content-info-value" id="contentFileCount">0</div>
+                        <div class="content-info-label">Files</div>
+                    </div>
+                    <div class="content-info-item">
+                        <div class="content-info-value" id="contentLineCount">0</div>
+                        <div class="content-info-label">Lines</div>
+                    </div>
+                    <div class="content-info-item">
+                        <div class="content-info-value" id="contentCharCount">0</div>
+                        <div class="content-info-label">Characters</div>
+                    </div>
+                    <div class="content-info-item">
+                        <div class="content-info-value" id="contentSizeCount">0 KB</div>
+                        <div class="content-info-label">Size</div>
+                    </div>
+                </div>
+                <div class="content-display-modal" id="contentDisplayModal">
+                    <pre id="generatedContent"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="downloadContentBtn">💾 Download</button>
+                <button class="btn btn-primary" id="closeContentModal2">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal hidden settings-modal" id="settingsModal">
         <div class="modal-content">
@@ -180,6 +220,7 @@
                 this.dockerFiles = [];
                 this.fileDependencies = new Map();
                 this.dependencyOwners = new Map();
+                this.generatedFileContent = '';
                 this.init();
             }
 
@@ -451,6 +492,12 @@
                 document.getElementById('closeModal').addEventListener('click', () => this.hideConfirmModal());
                 document.getElementById('cancelBtn').addEventListener('click', () => this.hideConfirmModal());
                 document.getElementById('confirmBtn').addEventListener('click', () => this.generateFile());
+
+                // Content modal listeners
+                document.getElementById('closeContentModal').addEventListener('click', () => this.hideContentModal());
+                document.getElementById('closeContentModal2').addEventListener('click', () => this.hideContentModal());
+                document.getElementById('copyContentBtn').addEventListener('click', () => this.copyContentToClipboard());
+                document.getElementById('downloadContentBtn').addEventListener('click', () => this.downloadContent());
 
                 // Settings modal listeners
                 document.getElementById('settingsBtn').addEventListener('click', () => this.showSettingsModal());
@@ -1469,6 +1516,9 @@
                         }
                     }
 
+                    // Store the generated content
+                    this.generatedFileContent = output;
+
                     // Save file using the server's API
                     const response = await fetch('/api/save', {
                         method: 'POST',
@@ -1481,21 +1531,106 @@
                     const result = await response.json();
 
                     if (result.success) {
-                        // Show enhanced success message with directory info
+                        // Hide confirmation modal first
+                        this.hideConfirmModal();
+
+                        // Show enhanced success message
                         alert(`✅ File saved successfully!\n\n` +
                               `📁 Directory: output_files_selected/\n` +
                               `📄 Filename: ${result.filename}\n` +
                               `📍 Full path: ${result.relativePath}\n\n` +
-                              `The file has been saved to the output_files_selected directory in your project.`);
+                              `The file content will now be displayed for preview.`);
+
+                        // Show content modal
+                        this.showContentModal();
                     } else {
                         alert(`❌ Error saving file: ${result.error}`);
                     }
 
-                    this.hideConfirmModal();
                 } catch (error) {
                     console.error('Error generating file:', error);
                     alert(`❌ Error generating file: ${error.message}`);
                 }
+            }
+
+            showContentModal() {
+                const modal = document.getElementById('contentModal');
+                const generatedContent = document.getElementById('generatedContent');
+                const contentFileCount = document.getElementById('contentFileCount');
+                const contentLineCount = document.getElementById('contentLineCount');
+                const contentCharCount = document.getElementById('contentCharCount');
+                const contentSizeCount = document.getElementById('contentSizeCount');
+
+                // Calculate statistics
+                const lines = this.generatedFileContent.split('\n').length;
+                const characters = this.generatedFileContent.length;
+                const size = new Blob([this.generatedFileContent]).size;
+                const fileCount = Array.from(this.selectedFiles).filter(path => {
+                    const item = document.querySelector(`[data-path="${path}"]`);
+                    return !item || item.dataset.type === 'file';
+                }).length;
+
+                // Update statistics
+                contentFileCount.textContent = fileCount;
+                contentLineCount.textContent = lines.toLocaleString();
+                contentCharCount.textContent = characters.toLocaleString();
+                contentSizeCount.textContent = this.formatFileSize(size);
+
+                // Set content
+                generatedContent.textContent = this.generatedFileContent;
+
+                // Show modal
+                modal.classList.remove('hidden');
+
+                // Scroll to top
+                document.getElementById('contentDisplayModal').scrollTop = 0;
+            }
+
+            hideContentModal() {
+                document.getElementById('contentModal').classList.add('hidden');
+            }
+
+            async copyContentToClipboard() {
+                try {
+                    await navigator.clipboard.writeText(this.generatedFileContent);
+
+                    const copyBtn = document.getElementById('copyContentBtn');
+                    const originalText = copyBtn.textContent;
+
+                    copyBtn.textContent = '✅ Copied!';
+                    copyBtn.classList.add('copied');
+
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('Failed to copy to clipboard:', error);
+                    alert('❌ Failed to copy to clipboard. Please select and copy manually.');
+                }
+            }
+
+            downloadContent() {
+                const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+                const filename = `collected_files_${timestamp}.txt`;
+
+                const blob = new Blob([this.generatedFileContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.style.display = 'none';
+
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                URL.revokeObjectURL(url);
+
+                // Show feedback
+                alert(`📥 Download started: ${filename}`);
             }
         }
 

@@ -322,6 +322,115 @@ body {
     flex-direction: column;
 }
 
+/* Large Content Modal Styles */
+.content-modal .modal-content {
+    max-width: 95%;
+    max-height: 95%;
+    width: 1200px;
+}
+
+.content-modal .modal-body {
+    padding: 0;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-modal .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.content-modal .modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #30363d;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+.content-display-modal {
+    flex: 1;
+    overflow: auto;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 16px 20px;
+    position: relative;
+}
+
+.content-display-modal pre {
+    background: #0d1117;
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.4;
+    overflow: visible;
+    white-space: pre;
+    margin: 0;
+    border: none;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    color: #f0f6fc;
+    min-width: max-content;
+}
+
+.content-info {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 16px 20px;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.content-info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.content-info-value {
+    font-weight: 600;
+    color: #58a6ff;
+    font-size: 16px;
+}
+
+.content-info-label {
+    font-size: 11px;
+    color: #7d8590;
+}
+
+.copy-btn {
+    background: #1f6feb;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background-color 0.2s;
+    font-weight: 500;
+}
+
+.copy-btn:hover {
+    background: #388bfd;
+}
+
+.copy-btn.copied {
+    background: #238636;
+}
+
 .modal-header {
     padding: 16px 20px;
     border-bottom: 1px solid #30363d;
@@ -816,6 +925,30 @@ body {
     background: #21262d;
 }
 
+/* Scrollbar styles for content modal */
+.content-display-modal::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.content-display-modal::-webkit-scrollbar-track {
+    background: #21262d;
+}
+
+.content-display-modal::-webkit-scrollbar-thumb {
+    background: #58a6ff;
+    border-radius: 6px;
+    border: 2px solid #21262d;
+}
+
+.content-display-modal::-webkit-scrollbar-thumb:hover {
+    background: #7c3aed;
+}
+
+.content-display-modal::-webkit-scrollbar-corner {
+    background: #21262d;
+}
+
 /* Resize indicator */
 .resize-indicator {
     position: absolute;
@@ -835,6 +968,30 @@ body {
 
 .resizer.dragging + .resize-indicator {
     opacity: 1;
+}
+
+/* Responsive behavior for content modal */
+@media (max-width: 1200px) {
+    .content-modal .modal-content {
+        width: 95%;
+    }
+}
+
+@media (max-width: 768px) {
+    .content-modal .modal-content {
+        width: 98%;
+        max-height: 98%;
+    }
+
+    .content-info {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .content-display-modal pre {
+        font-size: 11px;
+        padding: 12px;
+    }
 }
 
 /* Better responsive behavior */
