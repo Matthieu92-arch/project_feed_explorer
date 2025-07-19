@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local File Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>🗂️ Local File Explorer</h1>
+            <div class="root-path" id="rootPath">
+                <span id="currentPath">Loading...</span>
+                <button class="btn" onclick="window.fileExplorer.changeRootDirectory()" style="margin-left: 8px; padding: 2px 6px; font-size: 10px;">📁 Browse</button>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="server-info">Web Server Mode</div>
+            <button class="settings-btn" id="settingsBtn">
+                ⚙️ Settings
+            </button>
+            <button class="validate-btn" id="validateBtn" disabled>
+                Validate Selection (<span id="selectedCount">0</span>)
+            </button>
+        </div>
+    </div>
+
+    <div class="main-container">
+    <div class="file-content">
+        <div class="content-header" id="contentHeader">
+            <span>Select a file to view its content</span>
+            <span class="file-info" id="fileInfo"></span>
+        </div>
+        <div class="content-display" id="contentDisplay">
+            <div class="empty-state">
+                <p>📁 No file selected</p>
+                <p style="font-size: 12px; margin-top: 8px;">Click on a file in the explorer to view its content</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="resizer" id="resizer">
+        <div class="resize-indicator" id="resizeIndicator">Drag to resize</div>
+    </div>
+
+    <div class="file-explorer" id="fileExplorer">
+        <div class="breadcrumb" id="breadcrumb">
+            <!-- Breadcrumb will be populated here -->
+        </div>
+        <div class="explorer-content">
+            <div class="file-tree" id="fileTree">
+                <div class="loading">🔄 Loading files...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal hidden" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm File Selection</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="summary">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="summary-value" id="totalFiles">0</div>
+                            <div class="summary-label">Files</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-value" id="totalLines">0</div>
+                            <div class="summary-label">Lines</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-value" id="totalSize">0 KB</div>
+                            <div class="summary-label">Size</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+                <div><strong>Selected files:</strong></div>
+                <div class="file-list" id="selectedFilesList">
+                    <!-- Selected files will be listed here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="confirmBtn">Generate File</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal hidden settings-modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="close-btn" id="closeSettingsModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form class="settings-form" id="settingsForm">
+                    <div class="settings-section">
+                        <h3>📁 Default Directory</h3>
+                        <div class="form-group">
+                            <label for="defaultPath">Start Directory</label>
+                            <div class="form-input-group">
+                                <input type="text" id="defaultPath" class="form-input" placeholder="/path/to/your/project">
+                                <button type="button" class="browse-btn" id="browseDefaultPath">📁 Browse</button>
+                            </div>
+                            <div class="description">Choose the directory where the file explorer should start when launched.</div>
+                            <div class="current-status">
+                                <span class="status-indicator"></span>
+                                Current: <span id="currentDefaultPath">Not set</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>🐳 Docker Integration</h3>
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="includeDockerFiles">
+                                <label for="includeDockerFiles" class="checkbox-label">
+                                    <span class="checkbox-title">Auto-include Docker files</span>
+                                    <span class="checkbox-description">
+                                        Automatically include Docker-related files (Dockerfile, docker-compose.yml, .dockerignore, etc.)
+                                        from the parent directory and all subdirectories when generating file collections.
+                                    </span>
+                                </label>
+                            </div>
+                            <div id="dockerFilesPreview" class="docker-files-preview" style="display: none;">
+                                <h4>Docker files that will be included:</h4>
+                                <div id="dockerFilesList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FileExplorer {
+            constructor() {
+                this.currentPath = '';
+                this.selectedFiles = new Set();
+                this.fileContents = new Map();
+                this.expandedDirectories = new Set();
+                this.settings = {
+                    defaultPath: '',
+                    includeDockerFiles: false
+                };
+                this.dockerFiles = [];
+                this.init();
+            }
+
+            async init() {
+                this.setupEventListeners();
+
+                // Load settings first
+                await this.loadSettings();
+
+                // Start from settings default path or server's current working directory
+                if (this.settings.defaultPath && await this.directoryExists(this.settings.defaultPath)) {
+                    this.currentPath = this.settings.defaultPath;
+                } else {
+                    this.currentPath = await this.getCurrentWorkingDirectory();
+                }
+
+                document.getElementById('currentPath').textContent = this.currentPath;
+                await this.loadDirectory(this.currentPath);
+
+                // Scan for Docker files if enabled
+                if (this.settings.includeDockerFiles) {
+                    await this.scanForDockerFiles();
+                }
+
+                // Make this instance globally accessible for the browse button
+                window.fileExplorer = this;
+            }
+
+            async loadSettings() {
+                try {
+                    const response = await fetch('/api/settings');
+                    if (response.ok) {
+                        const settings = await response.json();
+                        this.settings = { ...this.settings, ...settings };
+                        console.log('✅ Settings loaded:', this.settings);
+                    }
+                } catch (error) {
+                    console.log('⚠️ No settings found, using defaults');
+                }
+            }
+
+            async saveSettings() {
+                try {
+                    const response = await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(this.settings)
+                    });
+
+                    if (response.ok) {
+                        console.log('✅ Settings saved successfully');
+                        return true;
+                    } else {
+                        console.error('❌ Failed to save settings');
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('❌ Error saving settings:', error);
+                    return false;
+                }
+            }
+
+            async directoryExists(path) {
+                try {
+                    const pathForAPI = path.startsWith('/') ? path.substring(1) : path;
+                    const encodedPath = encodeURIComponent(pathForAPI);
+                    const response = await fetch(`/api/exists/${encodedPath}`);
+                    const result = await response.json();
+                    return result.exists && result.isDirectory;
+                } catch (error) {
+                    console.error('Error checking directory:', error);
+                    return false;
+                }
+            }
+
+            async scanForDockerFiles() {
+                try {
+                    const response = await fetch('/api/docker-files', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ startPath: this.currentPath })
+                    });
+
+                    if (response.ok) {
+                        this.dockerFiles = await response.json();
+                        console.log(`🐳 Found ${this.dockerFiles.length} Docker files`);
+
+                        // Auto-select Docker files
+                        this.dockerFiles.forEach(dockerFile => {
+                            this.selectedFiles.add(dockerFile.path);
+                        });
+
+                        this.updateValidateButton();
+                        this.updateVisibleCheckboxes();
+                    }
+                } catch (error) {
+                    console.error('Error scanning for Docker files:', error);
+                }
+            }
+
+            showSettingsModal() {
+                const modal = document.getElementById('settingsModal');
+                const defaultPathInput = document.getElementById('defaultPath');
+                const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+                const currentDefaultPath = document.getElementById('currentDefaultPath');
+
+                // Populate current settings
+                defaultPathInput.value = this.settings.defaultPath || '';
+                includeDockerCheckbox.checked = this.settings.includeDockerFiles || false;
+                currentDefaultPath.textContent = this.settings.defaultPath || 'Not set';
+
+                // Update Docker files preview
+                this.updateDockerFilesPreview();
+
+                modal.classList.remove('hidden');
+            }
+
+            hideSettingsModal() {
+                document.getElementById('settingsModal').classList.add('hidden');
+            }
+
+            async updateDockerFilesPreview() {
+                const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+                const dockerFilesPreview = document.getElementById('dockerFilesPreview');
+                const dockerFilesList = document.getElementById('dockerFilesList');
+
+                if (includeDockerCheckbox.checked) {
+                    dockerFilesPreview.style.display = 'block';
+
+                    if (this.dockerFiles.length > 0) {
+                        dockerFilesList.innerHTML = this.dockerFiles.map(file =>
+                            `<div class="docker-file-item">${file.relativePath}</div>`
+                        ).join('');
+                    } else {
+                        dockerFilesList.innerHTML = '<div class="docker-file-item" style="color: #7d8590;">No Docker files found in current directory tree</div>';
+                    }
+                } else {
+                    dockerFilesPreview.style.display = 'none';
+                }
+            }
+
+            async saveSettingsFromModal() {
+                const defaultPathInput = document.getElementById('defaultPath');
+                const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+
+                const newSettings = {
+                    defaultPath: defaultPathInput.value.trim(),
+                    includeDockerFiles: includeDockerCheckbox.checked
+                };
+
+                // Validate default path if provided
+                if (newSettings.defaultPath && !await this.directoryExists(newSettings.defaultPath)) {
+                    alert('❌ The specified default path does not exist or is not accessible.');
+                    return false;
+                }
+
+                const oldSettings = { ...this.settings };
+                this.settings = { ...this.settings, ...newSettings };
+
+                const saved = await this.saveSettings();
+                if (saved) {
+                    // If Docker setting changed, rescan
+                    if (oldSettings.includeDockerFiles !== newSettings.includeDockerFiles) {
+                        if (newSettings.includeDockerFiles) {
+                            await this.scanForDockerFiles();
+                        } else {
+                            // Remove Docker files from selection
+                            this.dockerFiles.forEach(dockerFile => {
+                                this.selectedFiles.delete(dockerFile.path);
+                            });
+                            this.dockerFiles = [];
+                            this.updateValidateButton();
+                            this.updateVisibleCheckboxes();
+                        }
+                    }
+
+                    this.hideSettingsModal();
+                    alert('✅ Settings saved successfully!');
+                    return true;
+                } else {
+                    alert('❌ Failed to save settings. Please try again.');
+                    return false;
+                }
+            }
+
+            async getCurrentWorkingDirectory() {
+                try {
+                    const response = await fetch('/api/cwd');
+                    const data = await response.json();
+                    return data.cwd;
+                } catch (error) {
+                    console.error('Error getting current directory:', error);
+                    return '/';
+                }
+            }
+
+            async changeRootDirectory() {
+                const newPath = prompt('Enter the path to the directory you want to explore:', this.currentPath);
+                if (newPath && newPath !== this.currentPath) {
+                    try {
+                        await this.loadDirectory(newPath);
+                        document.getElementById('currentPath').textContent = newPath;
+                        this.selectedFiles.clear();
+                        this.fileContents.clear();
+                        this.expandedDirectories.clear();
+                        this.currentPath = newPath;
+
+                        // Rescan for Docker files if enabled
+                        if (this.settings.includeDockerFiles) {
+                            await this.scanForDockerFiles();
+                        }
+
+                        this.updateValidateButton();
+                    } catch (error) {
+                        alert(`Error accessing directory: ${error.message}\n\nPlease check that the path exists and you have permission to access it.`);
+                    }
+                }
+            }
+
+            setupEventListeners() {
+                // Existing listeners
+                document.getElementById('validateBtn').addEventListener('click', () => this.showConfirmModal());
+                document.getElementById('closeModal').addEventListener('click', () => this.hideConfirmModal());
+                document.getElementById('cancelBtn').addEventListener('click', () => this.hideConfirmModal());
+                document.getElementById('confirmBtn').addEventListener('click', () => this.generateFile());
+
+                // Settings modal listeners
+                document.getElementById('settingsBtn').addEventListener('click', () => this.showSettingsModal());
+                document.getElementById('closeSettingsModal').addEventListener('click', () => this.hideSettingsModal());
+                document.getElementById('cancelSettingsBtn').addEventListener('click', () => this.hideSettingsModal());
+                document.getElementById('saveSettingsBtn').addEventListener('click', () => this.saveSettingsFromModal());
+
+                // Browse button for default path
+                document.getElementById('browseDefaultPath').addEventListener('click', () => {
+                    const newPath = prompt('Enter the default directory path:', this.settings.defaultPath || this.currentPath);
+                    if (newPath) {
+                        document.getElementById('defaultPath').value = newPath;
+                    }
+                });
+
+                // Docker files checkbox
+                document.getElementById('includeDockerFiles').addEventListener('change', () => {
+                    this.updateDockerFilesPreview();
+                });
+            }
+
+            async loadDirectory(path) {
+                try {
+                    const tree = document.getElementById('fileTree');
+                    tree.innerHTML = '<div class="loading">🔄 Loading files...</div>';
+
+                    const encodedPath = encodeURIComponent(path.substring(1)); // Remove leading slash
+                    const response = await fetch(`/api/directory/${encodedPath}`);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const files = await response.json();
+                    this.renderFileTree(files, path);
+                    this.updateBreadcrumb(path);
+                    this.currentPath = path;
+                } catch (error) {
+                    console.error('Error loading directory:', error);
+                    const tree = document.getElementById('fileTree');
+                    tree.innerHTML = `<div class="error">❌ Error loading directory: ${error.message}</div>`;
+                }
+            }
+
+            renderFileTree(files, basePath) {
+                const tree = document.getElementById('fileTree');
+                tree.innerHTML = '';
+
+                if (files.length === 0) {
+                    tree.innerHTML = '<div class="empty-state">📂 No files found</div>';
+                    return;
+                }
+
+                files.forEach(file => {
+                    const item = this.createFileItem(file, basePath);
+                    tree.appendChild(item);
+                });
+            }
+
+            createFileItem(file, basePath) {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.dataset.path = file.path;
+                item.dataset.type = file.type;
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'checkbox';
+                checkbox.checked = this.selectedFiles.has(file.path);
+                checkbox.addEventListener('change', (e) => this.handleFileSelection(file, e.target.checked));
+
+                const icon = document.createElement('div');
+                icon.className = 'file-icon';
+
+                if (file.type === 'directory') {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'directory-arrow';
+                    if (this.expandedDirectories.has(file.path)) {
+                        arrow.classList.add('expanded');
+                    }
+                    item.appendChild(arrow);
+                    icon.innerHTML = '📁';
+                } else {
+                    icon.innerHTML = this.getFileIcon(file.name);
+                }
+
+                const name = document.createElement('span');
+                name.className = 'file-name';
+                name.textContent = file.name;
+
+                const size = document.createElement('span');
+                size.className = 'file-size';
+                if (file.type === 'file') {
+                    size.textContent = this.formatFileSize(file.size);
+                }
+
+                item.appendChild(checkbox);
+                item.appendChild(icon);
+                item.appendChild(name);
+                if (file.type === 'file') {
+                    item.appendChild(size);
+                }
+
+                // Add Docker indicator if this is a Docker file
+                if (this.dockerFiles.some(dockerFile => dockerFile.path === file.path)) {
+                    const dockerIndicator = document.createElement('span');
+                    dockerIndicator.className = 'dependency-indicator';
+                    dockerIndicator.textContent = '🐳';
+                    dockerIndicator.title = 'Docker file (auto-included)';
+                    dockerIndicator.style.background = '#0066cc';
+                    item.appendChild(dockerIndicator);
+                }
+
+                // Add click handlers
+                if (file.type === 'directory') {
+                    name.addEventListener('click', () => this.loadDirectory(file.path));
+                    item.querySelector('.directory-arrow').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.toggleDirectory(item, file.path);
+                    });
+                } else {
+                    name.addEventListener('click', () => this.loadFileContent(file));
+                }
+
+                return item;
+            }
+
+            getFileIcon(filename) {
+                const ext = filename.split('.').pop()?.toLowerCase();
+                const iconMap = {
+                    'js': '🟨',
+                    'jsx': '🟨',
+                    'ts': '🔷',
+                    'tsx': '🔷',
+                    'py': '🐍',
+                    'json': '⚙️',
+                    'md': '📝',
+                    'css': '🎨',
+                    'scss': '🎨',
+                    'html': '🌐',
+                    'txt': '📃',
+                    'yml': '📄',
+                    'yaml': '📄',
+                    'xml': '📄',
+                    'svg': '🖼️',
+                    'png': '🖼️',
+                    'jpg': '🖼️',
+                    'jpeg': '🖼️',
+                    'gif': '🖼️',
+                    'pdf': '📕',
+                    'zip': '📦',
+                    'tar': '📦',
+                    'gz': '📦'
+                };
+
+                // Special handling for Docker files
+                if (filename.toLowerCase().includes('dockerfile') ||
+                    filename === 'docker-compose.yml' ||
+                    filename === 'docker-compose.yaml' ||
+                    filename === '.dockerignore') {
+                    return '🐳';
+                }
+
+                return iconMap[ext] || '📄';
+            }
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            async toggleDirectory(item, path) {
+                const arrow = item.querySelector('.directory-arrow');
+                let children = item.nextElementSibling;
+
+                if (children && children.classList.contains('children')) {
+                    // Toggle existing children
+                    children.classList.toggle('hidden');
+                    arrow.classList.toggle('expanded');
+
+                    if (children.classList.contains('hidden')) {
+                        this.expandedDirectories.delete(path);
+                    } else {
+                        this.expandedDirectories.add(path);
+                    }
+                } else {
+                    // Load and create children
+                    try {
+                        const encodedPath = encodeURIComponent(path.substring(1));
+                        const response = await fetch(`/api/directory/${encodedPath}`);
+                        const files = await response.json();
+
+                        children = document.createElement('div');
+                        children.className = 'children';
+
+                        files.forEach(file => {
+                            const childItem = this.createFileItem(file, path);
+                            children.appendChild(childItem);
+                        });
+
+                        item.parentNode.insertBefore(children, item.nextSibling);
+                        arrow.classList.add('expanded');
+                        this.expandedDirectories.add(path);
+                    } catch (error) {
+                        console.error('Error loading directory contents:', error);
+                    }
+                }
+            }
+
+            async handleFileSelection(file, isSelected) {
+                if (isSelected) {
+                    this.selectedFiles.add(file.path);
+                    if (file.type === 'file') {
+                        await this.analyzeFileDependencies(file);
+                    } else if (file.type === 'directory') {
+                        await this.selectDirectoryContents(file.path);
+                    }
+                } else {
+                    this.selectedFiles.delete(file.path);
+                    if (file.type === 'directory') {
+                        await this.deselectDirectoryContents(file.path);
+                    }
+                }
+
+                this.updateValidateButton();
+            }
+
+            async selectDirectoryContents(dirPath) {
+                try {
+                    const encodedPath = encodeURIComponent(dirPath.substring(1));
+                    const response = await fetch(`/api/directory/${encodedPath}`);
+                    const files = await response.json();
+
+                    for (const file of files) {
+                        this.selectedFiles.add(file.path);
+
+                        if (file.type === 'directory') {
+                            await this.selectDirectoryContents(file.path);
+                        } else if (file.type === 'file') {
+                            await this.analyzeFileDependencies(file);
+                        }
+                    }
+
+                    // Update checkboxes in UI if they're visible
+                    this.updateVisibleCheckboxes();
+                } catch (error) {
+                    console.error('Error selecting directory contents:', error);
+                }
+            }
+
+            async deselectDirectoryContents(dirPath) {
+                try {
+                    const encodedPath = encodeURIComponent(dirPath.substring(1));
+                    const response = await fetch(`/api/directory/${encodedPath}`);
+                    const files = await response.json();
+
+                    for (const file of files) {
+                        this.selectedFiles.delete(file.path);
+
+                        if (file.type === 'directory') {
+                            await this.deselectDirectoryContents(file.path);
+                        }
+                    }
+
+                    // Update checkboxes in UI if they're visible
+                    this.updateVisibleCheckboxes();
+                } catch (error) {
+                    console.error('Error deselecting directory contents:', error);
+                }
+            }
+
+            updateVisibleCheckboxes() {
+                document.querySelectorAll('.file-item').forEach(item => {
+                    const checkbox = item.querySelector('.checkbox');
+                    const path = item.dataset.path;
+                    if (checkbox && path) {
+                        checkbox.checked = this.selectedFiles.has(path);
+                    }
+                });
+            }
+
+            async analyzeFileDependencies(file) {
+                try {
+                    console.log('🔍 Analyzing dependencies for:', file.path);
+                    const content = await this.getFileContent(file.path);
+                    if (!content || content.isBinary) {
+                        console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
+                        return;
+                    }
+
+                    console.log('📄 File content preview:', content.content.substring(0, 500));
+
+                    // Get relative paths first
+                    const relativePaths = this.extractDependencies(content.content, file.path);
+                    console.log('🔗 Found relative paths:', relativePaths);
+
+                    // Resolve each path to absolute paths
+                    const resolvedPaths = [];
+                    for (const relativePath of relativePaths) {
+                        console.log('⚡ Resolving dependency:', relativePath);
+                        const absolutePath = await this.resolvePath(file.path, relativePath);
+                        if (absolutePath) {
+                            console.log('✅ Resolved to:', absolutePath);
+                            resolvedPaths.push(absolutePath);
+                        } else {
+                            console.log('❌ Could not resolve:', relativePath);
+                        }
+                    }
+
+                    console.log('🎯 Final resolved dependencies:', resolvedPaths);
+
+                    // Add resolved dependencies to selection
+                    for (const depPath of resolvedPaths) {
+                        if (!this.selectedFiles.has(depPath)) {
+                            console.log('✅ Adding dependency:', depPath);
+                            this.selectedFiles.add(depPath);
+
+                            // Update checkbox if visible
+                            const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
+                            if (checkbox) {
+                                console.log('✅ Updated checkbox for:', depPath);
+                                checkbox.checked = true;
+                            }
+
+                            // Add dependency indicator
+                            const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                            if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
+                                const indicator = document.createElement('span');
+                                indicator.className = 'dependency-indicator';
+                                indicator.textContent = 'AUTO';
+                                indicator.title = 'Automatically selected as dependency';
+                                fileItem.appendChild(indicator);
+                                console.log('🏷️ Added AUTO indicator to:', depPath);
+                            } else if (!fileItem) {
+                                console.log('⚠️ File item not found in DOM for:', depPath);
+                            }
+                        } else {
+                            console.log('⏭️ Dependency already selected:', depPath);
+                        }
+                    }
+
+                    this.updateValidateButton();
+                } catch (error) {
+                    console.error('❌ Error analyzing dependencies:', error);
+                }
+            }
+
+            extractDependencies(content, currentFilePath) {
+                console.log('🔍 Extracting dependencies from:', currentFilePath);
+                const dependencies = [];
+
+                // Enhanced regex patterns for better matching
+                const importRegexes = [
+                    // ES6 imports with relative paths
+                    /import\s+.*\s+from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
+                    /import\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
+                    // CommonJS requires with relative paths
+                    /require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
+                    // Dynamic imports with relative paths
+                    /import\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
+                    // TypeScript imports with relative paths
+                    /import\s+.*\s+=\s+require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g
+                ];
+
+                console.log('📝 Content to analyze (first 1000 chars):', content.substring(0, 1000));
+
+                importRegexes.forEach((regex, index) => {
+                    console.log(`🔎 Testing regex ${index + 1}:`, regex);
+                    let match;
+                    while ((match = regex.exec(content)) !== null) {
+                        const relativePath = match[1];
+                        console.log(`✅ Found match: "${relativePath}"`);
+
+                        // Store relative path for async resolution later
+                        dependencies.push(relativePath);
+                        console.log(`➕ Added relative path: "${relativePath}"`);
+                    }
+                    // Reset regex lastIndex for next iteration
+                    regex.lastIndex = 0;
+                });
+
+                console.log('📋 Relative dependencies found:', dependencies);
+                return dependencies;
+            }
+
+            async resolvePath(currentPath, relativePath) {
+                try {
+                    console.log(`🧭 Resolving path: "${relativePath}" from "${currentPath}"`);
+
+                    // Get the directory of the current file
+                    const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
+                    console.log(`📁 Current directory: "${currentDir}"`);
+
+                    // Build the resolved path manually for better control
+                    let resolvedPath;
+                    if (relativePath.startsWith('./')) {
+                        // Same directory
+                        resolvedPath = currentDir + '/' + relativePath.substring(2);
+                    } else if (relativePath.startsWith('../')) {
+                        // Parent directory
+                        let pathParts = currentDir.split('/');
+                        let relativeParts = relativePath.split('/');
+
+                        for (let part of relativeParts) {
+                            if (part === '..') {
+                                pathParts.pop(); // Go up one directory
+                            } else if (part !== '.') {
+                                pathParts.push(part); // Add the path component
+                            }
+                        }
+                        resolvedPath = pathParts.join('/');
+                    } else {
+                        // Relative path without ./ or ../
+                        resolvedPath = currentDir + '/' + relativePath;
+                    }
+
+                    console.log(`🎯 Initial resolved path: "${resolvedPath}"`);
+
+                    // Helper function to check if a file exists
+                    const checkFileExists = async (testPath) => {
+                        try {
+                            // Remove leading slash for API call
+                            const pathForAPI = testPath.startsWith('/') ? testPath.substring(1) : testPath;
+                            const encodedPath = encodeURIComponent(pathForAPI);
+                            console.log(`🔍 Checking if exists: "${testPath}" (API path: "${pathForAPI}")`);
+
+                            const existsResponse = await fetch(`/api/exists/${encodedPath}`);
+                            const exists = await existsResponse.json();
+
+                            console.log(`📋 API response for "${testPath}":`, exists);
+
+                            if (exists.exists && exists.isFile) {
+                                console.log(`✅ Found file: "${testPath}"`);
+                                return testPath;
+                            }
+                            return null;
+                        } catch (error) {
+                            console.log(`❌ Error checking ${testPath}: ${error.message}`);
+                            return null;
+                        }
+                    };
+
+                    // First, try the exact path as resolved
+                    let foundPath = await checkFileExists(resolvedPath);
+                    if (foundPath) return foundPath;
+
+                    const hasNoExtension = (str) => {
+                        const lastSlash = str.lastIndexOf('/');
+                        const lastDot = str.lastIndexOf('.');
+                        return lastDot === -1 || lastDot < lastSlash;
+                    };
+
+                    console.log(` RELATIVE PATH -> ${relativePath}`);
+                    if (hasNoExtension(relativePath)) {
+                        const extensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
+                        console.log(`🔧 Trying extensions: ${extensions.join(', ')}`);
+
+                        for (const ext of extensions) {
+                            const pathWithExt = resolvedPath + ext;
+                            foundPath = await checkFileExists(pathWithExt);
+                            if (foundPath) return foundPath;
+                        }
+
+                        // Try index files
+                        console.log(`🔍 Trying index files in: "${resolvedPath}"`);
+                        for (const ext of extensions) {
+                            const indexPath = resolvedPath + '/index' + ext;
+                            foundPath = await checkFileExists(indexPath);
+                            if (foundPath) return foundPath;
+                        }
+                    }
+
+                    console.log(`❌ Could not resolve: "${relativePath}" from "${currentPath}"`);
+                    return null;
+                } catch (error) {
+                    console.error('❌ Error resolving path:', error);
+                    return null;
+                }
+            }
+
+            async getFileContent(filePath) {
+                if (this.fileContents.has(filePath)) {
+                    return this.fileContents.get(filePath);
+                }
+
+                try {
+                    const encodedPath = encodeURIComponent(filePath.substring(1));
+                    const response = await fetch(`/api/file/${encodedPath}`);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const content = await response.json();
+                    this.fileContents.set(filePath, content);
+                    return content;
+                } catch (error) {
+                    console.error('Error reading file:', error);
+                    return null;
+                }
+            }
+
+            async loadFileContent(file) {
+    try {
+        const content = await this.getFileContent(file.path);
+        const header = document.getElementById('contentHeader');
+        const fileInfo = document.getElementById('fileInfo');
+        const display = document.getElementById('contentDisplay');
+
+        header.firstChild.textContent = file.name;
+
+        if (!content) {
+            display.innerHTML = `
+                <div class="empty-state">
+                    <p>❌ Could not load file</p>
+                    <p style="font-size: 12px; margin-top: 8px;">File may not exist or be inaccessible</p>
+                </div>
+            `;
+            return;
+        }
+
+        if (content.isBinary) {
+            fileInfo.textContent = `Binary file (${this.formatFileSize(file.size)})`;
+            display.innerHTML = `
+                <div class="empty-state">
+                    <p>📁 Binary file</p>
+                    <p style="font-size: 12px; margin-top: 8px;">Cannot display binary content</p>
+                </div>
+            `;
+        } else {
+            fileInfo.textContent = `${content.lines} lines • ${this.formatFileSize(file.size)}`;
+
+            // Generate line numbers (start from 1)
+            const lineNumbers = [];
+            for (let i = 1; i <= content.lines; i++) {
+                lineNumbers.push(i);
+            }
+            const lineNumbersText = lineNumbers.join('\n');
+
+            // Clear the display first
+            display.innerHTML = '';
+
+            // Create line numbers container
+            const lineNumbersDiv = document.createElement('div');
+            lineNumbersDiv.className = 'line-numbers';
+            lineNumbersDiv.textContent = lineNumbersText;
+
+            // Create content container
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'content-with-numbers';
+            contentDiv.textContent = content.content;
+
+            // Add both to display
+            display.appendChild(lineNumbersDiv);
+            display.appendChild(contentDiv);
+
+            // Scroll to top
+            display.scrollTop = 0;
+            display.scrollLeft = 0;
+        }
+    } catch (error) {
+        console.error('Error loading file content:', error);
+        const display = document.getElementById('contentDisplay');
+        display.innerHTML = `
+            <div class="error">
+                ❌ Error loading file: ${error.message}
+            </div>
+        `;
+    }
+}
+
+            escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            updateBreadcrumb(path) {
+                const breadcrumb = document.getElementById('breadcrumb');
+                const parts = path.split('/').filter(p => p);
+
+                breadcrumb.innerHTML = '';
+                let currentPath = '';
+
+                // Add root
+                const rootItem = document.createElement('span');
+                rootItem.className = 'breadcrumb-item';
+                rootItem.textContent = '/';
+                rootItem.dataset.path = '/';
+                rootItem.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Breadcrumb ROOT clicked, navigating to: /');
+                    this.navigateToDirectory('/');
+                });
+                breadcrumb.appendChild(rootItem);
+
+                parts.forEach((part, index) => {
+                    const separator = document.createElement('span');
+                    separator.className = 'breadcrumb-separator';
+                    separator.textContent = '/';
+                    breadcrumb.appendChild(separator);
+
+                    currentPath += '/' + part;
+                    const item = document.createElement('span');
+                    item.className = 'breadcrumb-item';
+                    item.textContent = part;
+                    item.dataset.path = currentPath;
+
+                    // Create a closure to capture the currentPath value
+                    const targetPath = currentPath;
+                    item.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Breadcrumb clicked, navigating to:', targetPath);
+                        this.navigateToDirectory(targetPath);
+                    });
+
+                    breadcrumb.appendChild(item);
+                });
+            }
+
+            async navigateToDirectory(targetPath) {
+                try {
+                    console.log('Attempting to navigate to:', targetPath);
+
+                    // Clear the current tree to show loading
+                    const tree = document.getElementById('fileTree');
+                    tree.innerHTML = '<div class="loading">🔄 Loading files...</div>';
+
+                    // Update the current path display immediately
+                    document.getElementById('currentPath').textContent = targetPath;
+
+                    // Load the new directory
+                    await this.loadDirectory(targetPath);
+
+                    // Update current path
+                    this.currentPath = targetPath;
+
+                    // Rescan for Docker files if enabled and path changed
+                    if (this.settings.includeDockerFiles) {
+                        await this.scanForDockerFiles();
+                    }
+
+                    console.log('Successfully navigated to:', targetPath);
+                } catch (error) {
+                    console.error('Error navigating to directory:', error);
+                    alert(`Error accessing directory: ${error.message}\n\nPlease check that the path exists and you have permission to access it.`);
+                }
+            }
+
+            updateValidateButton() {
+                const btn = document.getElementById('validateBtn');
+                const count = document.getElementById('selectedCount');
+                const fileCount = Array.from(this.selectedFiles).filter(path => {
+                    // Only count actual files, not directories
+                    const item = document.querySelector(`[data-path="${path}"]`);
+                    return !item || item.dataset.type === 'file';
+                }).length;
+
+                count.textContent = fileCount;
+                btn.disabled = fileCount === 0;
+            }
+
+            async showConfirmModal() {
+                const modal = document.getElementById('confirmModal');
+                const totalFiles = document.getElementById('totalFiles');
+                const totalLines = document.getElementById('totalLines');
+                const totalSize = document.getElementById('totalSize');
+                const filesList = document.getElementById('selectedFilesList');
+                const progressFill = document.getElementById('progressFill');
+
+                // Show modal first
+                modal.classList.remove('hidden');
+
+                // Reset progress
+                progressFill.style.width = '0%';
+
+                // Calculate totals
+                let lineCount = 0;
+                let sizeCount = 0;
+                const files = [];
+                const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+                    const item = document.querySelector(`[data-path="${path}"]`);
+                    return !item || item.dataset.type === 'file';
+                });
+
+                totalFiles.textContent = selectedFilesList.length;
+                totalLines.textContent = 'Calculating...';
+                totalSize.textContent = 'Calculating...';
+
+                for (let i = 0; i < selectedFilesList.length; i++) {
+                    const filePath = selectedFilesList[i];
+
+                    try {
+                        const content = await this.getFileContent(filePath);
+
+                        if (content && !content.isBinary) {
+                            lineCount += content.lines;
+                            sizeCount += new Blob([content.content]).size;
+                        }
+
+                        const fileName = filePath.split('/').pop();
+                        const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                        files.push({
+                            fileName,
+                            directory,
+                            path: filePath,
+                            lines: content ? content.lines : 0,
+                            isBinary: content ? content.isBinary : false
+                        });
+
+                        // Update progress
+                        const progress = ((i + 1) / selectedFilesList.length) * 100;
+                        progressFill.style.width = progress + '%';
+
+                        // Update totals in real-time
+                        totalLines.textContent = lineCount.toLocaleString();
+                        totalSize.textContent = this.formatFileSize(sizeCount);
+
+                    } catch (error) {
+                        console.error(`Error processing file ${filePath}:`, error);
+                        files.push({
+                            fileName: filePath.split('/').pop(),
+                            directory: filePath.substring(0, filePath.lastIndexOf('/')),
+                            path: filePath,
+                            lines: 0,
+                            error: true
+                        });
+                    }
+                }
+
+                // Populate files list
+                filesList.innerHTML = '';
+                files.forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'file-list-item';
+
+                    const pathDiv = document.createElement('div');
+                    pathDiv.className = 'file-list-path';
+                    pathDiv.innerHTML = `<strong>${file.fileName}</strong><br><small>${file.directory}</small>`;
+
+                    const linesDiv = document.createElement('div');
+                    linesDiv.className = 'file-list-lines';
+                    if (file.error) {
+                        linesDiv.textContent = 'Error';
+                        linesDiv.style.color = '#f85149';
+                    } else if (file.isBinary) {
+                        linesDiv.textContent = 'Binary';
+                        linesDiv.style.color = '#7d8590';
+                    } else {
+                        linesDiv.textContent = `${file.lines} lines`;
+                    }
+
+                    item.appendChild(pathDiv);
+                    item.appendChild(linesDiv);
+                    filesList.appendChild(item);
+                });
+
+                // Complete progress
+                progressFill.style.width = '100%';
+            }
+
+            hideConfirmModal() {
+                document.getElementById('confirmModal').classList.add('hidden');
+            }
+
+            async generateFile() {
+                try {
+                    const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+                        const item = document.querySelector(`[data-path="${path}"]`);
+                        return !item || item.dataset.type === 'file';
+                    });
+
+                    let output = 'FILE COLLECTION\n';
+                    output += '='.repeat(80) + '\n\n';
+                    output += `Generated: ${new Date().toISOString()}\n`;
+                    output += `Total files: ${selectedFilesList.length}\n`;
+                    output += `Root directory: ${this.currentPath}\n`;
+                    if (this.dockerFiles.length > 0) {
+                        output += `Docker files included: ${this.dockerFiles.length}\n`;
+                    }
+                    output += '\n';
+
+                    for (const filePath of selectedFilesList.sort()) {
+                        try {
+                            // Ensure filePath is a string
+                            if (typeof filePath !== 'string') {
+                                console.error('Invalid filePath type:', typeof filePath, filePath);
+                                continue;
+                            }
+
+                            const content = await this.getFileContent(filePath);
+                            const fileName = filePath.split('/').pop();
+                            const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                            const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+
+                            output += '='.repeat(80) + '\n';
+                            output += `filename: ${fileName}\n`;
+                            output += `directory: ${directory}\n`;
+                            output += `relative_path: ${relativePath}\n`;
+                            output += `full_path: ${filePath}\n`;
+
+                            // Mark Docker files
+                            if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
+                                output += `type: docker\n`;
+                            }
+
+                            if (content && content.isBinary) {
+                                output += `type: binary\n`;
+                                output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
+                            } else if (content) {
+                                output += `type: text\n`;
+                                output += `lines: ${content.lines}\n`;
+                                output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
+                            }
+
+                            output += '='.repeat(80) + '\n\n';
+
+                            if (content && !content.isBinary) {
+                                output += content.content;
+                            } else if (content && content.isBinary) {
+                                output += '// Binary file - content not included\n';
+                            } else {
+                                output += '// Could not read file content\n';
+                            }
+
+                            output += '\n\n';
+                        } catch (error) {
+                            console.error(`Error processing file ${filePath}:`, error);
+                            const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
+                            const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
+
+                            output += '='.repeat(80) + '\n';
+                            output += `filename: ${fileName}\n`;
+                            output += `directory: ${directory}\n`;
+                            output += `full_path: ${filePath}\n`;
+                            output += `error: ${error.message}\n`;
+                            output += '='.repeat(80) + '\n\n';
+                            output += '// Error reading file\n\n';
+                        }
+                    }
+
+                    // Save file using the server's API
+                    const response = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                        },
+                        body: output
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Show success message
+                        alert(`✅ File saved successfully!\n\nLocation: ${result.filePath}\n\nYou can find the file in your project directory.`);
+                    } else {
+                        alert(`❌ Error saving file: ${result.error}`);
+                    }
+
+                    this.hideConfirmModal();
+                } catch (error) {
+                    console.error('Error generating file:', error);
+                    alert(`❌ Error generating file: ${error.message}`);
+                }
+            }
+        }
+
+        // Initialize the file explorer when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new FileExplorer();
+        });
+    </script>
+</body>
+</html>
