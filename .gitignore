@@ -6,3 +6,5 @@ package-lock.json
 .DS_STORE
 
 settings.json
+
+output_files_selected/*

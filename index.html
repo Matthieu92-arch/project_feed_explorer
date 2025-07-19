@@ -266,6 +266,28 @@
                 }
             }
 
+            async openNativeFileBrowser() {
+    try {
+        const response = await fetch('/api/browse-directory', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.path) {
+            return result.path;
+        } else {
+            return null;
+        }
+    } catch (error) {
+        console.error('Error opening file browser:', error);
+        return null;
+    }
+}
+
             showSettingsModal() {
                 const modal = document.getElementById('settingsModal');
                 const defaultPathInput = document.getElementById('defaultPath');
@@ -363,27 +385,28 @@
             }
 
             async changeRootDirectory() {
-                const newPath = prompt('Enter the path to the directory you want to explore:', this.currentPath);
-                if (newPath && newPath !== this.currentPath) {
-                    try {
-                        await this.loadDirectory(newPath);
-                        document.getElementById('currentPath').textContent = newPath;
-                        this.selectedFiles.clear();
-                        this.fileContents.clear();
-                        this.expandedDirectories.clear();
-                        this.currentPath = newPath;
+    const newPath = await this.openNativeFileBrowser();
+    if (newPath && newPath !== this.currentPath) {
+        try {
+            await this.loadDirectory(newPath);
+            document.getElementById('currentPath').textContent = newPath;
+            this.selectedFiles.clear();
+            this.fileContents.clear();
+            this.expandedDirectories.clear();
+            this.fileDependencies.clear();
+            this.dependencyOwners.clear();
+            this.currentPath = newPath;
 
-                        // Rescan for Docker files if enabled
-                        if (this.settings.includeDockerFiles) {
-                            await this.scanForDockerFiles();
-                        }
-
-                        this.updateValidateButton();
-                    } catch (error) {
-                        alert(`Error accessing directory: ${error.message}\n\nPlease check that the path exists and you have permission to access it.`);
-                    }
-                }
+            if (this.settings.includeDockerFiles) {
+                await this.scanForDockerFiles();
             }
+
+            this.updateValidateButton();
+        } catch (error) {
+            alert(`Error accessing directory: ${error.message}`);
+        }
+    }
+}
 
             setupEventListeners() {
                 // Existing listeners
@@ -399,12 +422,12 @@
                 document.getElementById('saveSettingsBtn').addEventListener('click', () => this.saveSettingsFromModal());
 
                 // Browse button for default path
-                document.getElementById('browseDefaultPath').addEventListener('click', () => {
-                    const newPath = prompt('Enter the default directory path:', this.settings.defaultPath || this.currentPath);
-                    if (newPath) {
-                        document.getElementById('defaultPath').value = newPath;
-                    }
-                });
+                document.getElementById('browseDefaultPath').addEventListener('click', async () => {
+    const newPath = await this.openNativeFileBrowser();
+    if (newPath) {
+        document.getElementById('defaultPath').value = newPath;
+    }
+});
 
                 // Docker files checkbox
                 document.getElementById('includeDockerFiles').addEventListener('change', () => {
@@ -1354,105 +1377,108 @@ setupResizer() {
             }
 
             async generateFile() {
-                try {
-                    const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
-                        const item = document.querySelector(`[data-path="${path}"]`);
-                        return !item || item.dataset.type === 'file';
-                    });
+    try {
+        const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+            const item = document.querySelector(`[data-path="${path}"]`);
+            return !item || item.dataset.type === 'file';
+        });
 
-                    let output = 'FILE COLLECTION\n';
-                    output += '='.repeat(80) + '\n\n';
-                    output += `Generated: ${new Date().toISOString()}\n`;
-                    output += `Total files: ${selectedFilesList.length}\n`;
-                    output += `Root directory: ${this.currentPath}\n`;
-                    if (this.dockerFiles.length > 0) {
-                        output += `Docker files included: ${this.dockerFiles.length}\n`;
-                    }
-                    output += '\n';
+        let output = 'FILE COLLECTION\n';
+        output += '='.repeat(80) + '\n\n';
+        output += `Generated: ${new Date().toISOString()}\n`;
+        output += `Total files: ${selectedFilesList.length}\n`;
+        output += `Root directory: ${this.currentPath}\n`;
+        if (this.dockerFiles.length > 0) {
+            output += `Docker files included: ${this.dockerFiles.length}\n`;
+        }
+        output += `Output saved to: output_files_selected/ directory\n`; // Add this line
+        output += '\n';
 
-                    for (const filePath of selectedFilesList.sort()) {
-                        try {
-                            // Ensure filePath is a string
-                            if (typeof filePath !== 'string') {
-                                console.error('Invalid filePath type:', typeof filePath, filePath);
-                                continue;
-                            }
-
-                            const content = await this.getFileContent(filePath);
-                            const fileName = filePath.split('/').pop();
-                            const directory = filePath.substring(0, filePath.lastIndexOf('/'));
-                            const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
-
-                            output += '='.repeat(80) + '\n';
-                            output += `filename: ${fileName}\n`;
-                            output += `directory: ${directory}\n`;
-                            output += `relative_path: ${relativePath}\n`;
-                            output += `full_path: ${filePath}\n`;
-
-                            // Mark Docker files
-                            if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
-                                output += `type: docker\n`;
-                            }
-
-                            if (content && content.isBinary) {
-                                output += `type: binary\n`;
-                                output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
-                            } else if (content) {
-                                output += `type: text\n`;
-                                output += `lines: ${content.lines}\n`;
-                                output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
-                            }
-
-                            output += '='.repeat(80) + '\n\n';
-
-                            if (content && !content.isBinary) {
-                                output += content.content;
-                            } else if (content && content.isBinary) {
-                                output += '// Binary file - content not included\n';
-                            } else {
-                                output += '// Could not read file content\n';
-                            }
-
-                            output += '\n\n';
-                        } catch (error) {
-                            console.error(`Error processing file ${filePath}:`, error);
-                            const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
-                            const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
-
-                            output += '='.repeat(80) + '\n';
-                            output += `filename: ${fileName}\n`;
-                            output += `directory: ${directory}\n`;
-                            output += `full_path: ${filePath}\n`;
-                            output += `error: ${error.message}\n`;
-                            output += '='.repeat(80) + '\n\n';
-                            output += '// Error reading file\n\n';
-                        }
-                    }
-
-                    // Save file using the server's API
-                    const response = await fetch('/api/save', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'text/plain',
-                        },
-                        body: output
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Show success message
-                        alert(`✅ File saved successfully!\n\nLocation: ${result.filePath}\n\nYou can find the file in your project directory.`);
-                    } else {
-                        alert(`❌ Error saving file: ${result.error}`);
-                    }
-
-                    this.hideConfirmModal();
-                } catch (error) {
-                    console.error('Error generating file:', error);
-                    alert(`❌ Error generating file: ${error.message}`);
+        for (const filePath of selectedFilesList.sort()) {
+            try {
+                if (typeof filePath !== 'string') {
+                    console.error('Invalid filePath type:', typeof filePath, filePath);
+                    continue;
                 }
+
+                const content = await this.getFileContent(filePath);
+                const fileName = filePath.split('/').pop();
+                const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+
+                output += '='.repeat(80) + '\n';
+                output += `filename: ${fileName}\n`;
+                output += `directory: ${directory}\n`;
+                output += `relative_path: ${relativePath}\n`;
+                output += `full_path: ${filePath}\n`;
+
+                if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
+                    output += `type: docker\n`;
+                }
+
+                if (content && content.isBinary) {
+                    output += `type: binary\n`;
+                    output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
+                } else if (content) {
+                    output += `type: text\n`;
+                    output += `lines: ${content.lines}\n`;
+                    output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
+                }
+
+                output += '='.repeat(80) + '\n\n';
+
+                if (content && !content.isBinary) {
+                    output += content.content;
+                } else if (content && content.isBinary) {
+                    output += '// Binary file - content not included\n';
+                } else {
+                    output += '// Could not read file content\n';
+                }
+
+                output += '\n\n';
+            } catch (error) {
+                console.error(`Error processing file ${filePath}:`, error);
+                const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
+                const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
+
+                output += '='.repeat(80) + '\n';
+                output += `filename: ${fileName}\n`;
+                output += `directory: ${directory}\n`;
+                output += `full_path: ${filePath}\n`;
+                output += `error: ${error.message}\n`;
+                output += '='.repeat(80) + '\n\n';
+                output += '// Error reading file\n\n';
             }
+        }
+
+        // Save file using the server's API
+        const response = await fetch('/api/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain',
+            },
+            body: output
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Show enhanced success message with directory info
+            alert(`✅ File saved successfully!\n\n` +
+                  `📁 Directory: output_files_selected/\n` +
+                  `📄 Filename: ${result.filename}\n` +
+                  `📍 Full path: ${result.relativePath}\n\n` +
+                  `The file has been saved to the output_files_selected directory in your project.`);
+        } else {
+            alert(`❌ Error saving file: ${result.error}`);
+        }
+
+        this.hideConfirmModal();
+    } catch (error) {
+        console.error('Error generating file:', error);
+        alert(`❌ Error generating file: ${error.message}`);
+    }
+}
         }
 
         // Initialize the file explorer when DOM is loaded

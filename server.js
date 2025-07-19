@@ -141,23 +141,48 @@ app.get('/api/exists/:path(*)', async (req, res) => {
     }
 });
 
-app.post('/api/save', express.raw({ type: 'text/plain', limit: '50mb' }), (req, res) => {
+app.post('/api/save', express.raw({ type: 'text/plain', limit: '50mb' }), async (req, res) => {
     try {
         const content = req.body.toString();
         const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
         const filename = `collected_files_${timestamp}.txt`;
-        const filePath = path.join(process.cwd(), filename);
 
-        fsSync.writeFileSync(filePath, content, 'utf-8');
+        // Create output directory path
+        const outputDir = path.join(process.cwd(), 'output_files_selected');
+        const filePath = path.join(outputDir, filename);
+
+        // Ensure the output directory exists
+        try {
+            await fs.mkdir(outputDir, { recursive: true });
+            console.log(`📁 Output directory ensured: ${outputDir}`);
+        } catch (error) {
+            console.error('Error creating output directory:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to create output directory'
+            });
+        }
+
+        // Write the file
+        await fs.writeFile(filePath, content, 'utf-8');
+        console.log(`💾 File saved: ${filePath}`);
+
+        // Get relative path for display
+        const relativePath = path.relative(process.cwd(), filePath);
 
         res.json({
             success: true,
             filePath: filePath,
-            filename: filename
+            relativePath: relativePath,
+            filename: filename,
+            outputDirectory: outputDir
         });
     } catch (error) {
         console.error('Error saving file:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
@@ -409,5 +434,101 @@ app.get('/api/exists/:path(*)', async (req, res) => {
             isDirectory: false,
             size: 0
         });
+    }
+});
+
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
+
+// Add this endpoint to your server.js
+app.post('/api/browse-directory', async (req, res) => {
+    try {
+        let selectedPath = null;
+        const platform = process.platform;
+
+        if (platform === 'darwin') {
+            // macOS - use osascript with AppleScript
+            const script = `
+                tell application "System Events"
+                    activate
+                end tell
+                set selectedFolder to (choose folder with prompt "Select Directory") as string
+                set posixPath to POSIX path of selectedFolder
+                return posixPath
+            `;
+
+            try {
+                const { stdout, stderr } = await execAsync(`osascript -e '${script}'`);
+                if (stderr) {
+                    console.error('AppleScript error:', stderr);
+                    return res.json({ success: false, error: 'User cancelled or error occurred' });
+                }
+                selectedPath = stdout.trim();
+                // Remove trailing slash if present
+                if (selectedPath.endsWith('/') && selectedPath.length > 1) {
+                    selectedPath = selectedPath.slice(0, -1);
+                }
+            } catch (error) {
+                console.error('Error executing AppleScript:', error);
+                return res.json({ success: false, error: 'User cancelled or error occurred' });
+            }
+
+        } else if (platform === 'win32') {
+            // Windows - use PowerShell
+            const script = `
+                Add-Type -AssemblyName System.Windows.Forms
+                $folder = New-Object System.Windows.Forms.FolderBrowserDialog
+                $folder.Description = "Select Directory"
+                $folder.ShowNewFolderButton = $true
+                if ($folder.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                    Write-Output $folder.SelectedPath
+                }
+            `;
+
+            try {
+                const { stdout, stderr } = await execAsync(`powershell -Command "${script.replace(/"/g, '\\"')}"`);
+                if (stderr || !stdout.trim()) {
+                    return res.json({ success: false, error: 'User cancelled or error occurred' });
+                }
+                selectedPath = stdout.trim();
+            } catch (error) {
+                console.error('Error executing PowerShell:', error);
+                return res.json({ success: false, error: 'User cancelled or error occurred' });
+            }
+
+        } else {
+            // Linux - use zenity (if available)
+            try {
+                const { stdout, stderr } = await execAsync('zenity --file-selection --directory --title="Select Directory"');
+                if (stderr || !stdout.trim()) {
+                    return res.json({ success: false, error: 'User cancelled or zenity not available' });
+                }
+                selectedPath = stdout.trim();
+            } catch (error) {
+                console.error('Error executing zenity:', error);
+                return res.json({ success: false, error: 'zenity not available or user cancelled' });
+            }
+        }
+
+        if (selectedPath) {
+            // Verify the selected path exists and is a directory
+            try {
+                const stats = await fs.stat(selectedPath);
+                if (stats.isDirectory()) {
+                    res.json({ success: true, path: selectedPath });
+                } else {
+                    res.json({ success: false, error: 'Selected path is not a directory' });
+                }
+            } catch (error) {
+                res.json({ success: false, error: 'Selected path does not exist' });
+            }
+        } else {
+            res.json({ success: false, error: 'No path selected' });
+        }
+
+    } catch (error) {
+        console.error('Error in browse-directory:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
     }
 });
