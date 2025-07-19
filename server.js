@@ -15,6 +15,27 @@ const server = http.createServer(app);
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
 
+const DJANGO_FILES = [
+    'settings.py',
+    'urls.py',
+    'wsgi.py',
+    'asgi.py',
+    'models.py',
+    'views.py',
+    'admin.py',
+    'forms.py',
+    'serializers.py'
+];
+
+// React file patterns
+const REACT_FILES = [
+    'package.json',
+    'src/index.js',
+    'src/index.jsx',
+    'src/main.jsx',
+    'src/App.js',
+    'src/App.jsx'
+];
 
 // Serve static files
 app.use(express.static(__dirname));
@@ -522,5 +543,307 @@ app.post('/api/browse-directory', async (req, res) => {
     } catch (error) {
         console.error('Error in browse-directory:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// Helper function to check if a filename matches Django patterns
+function isDjangoFile(filename, filePath) {
+    const lowerName = filename.toLowerCase();
+    return DJANGO_FILES.some(pattern => lowerName === pattern.toLowerCase()) ||
+           filePath.includes('settings.py') ||
+           filePath.includes('urls.py') ||
+           filePath.includes('models.py') ||
+           filePath.includes('views.py') ||
+           filePath.includes('admin.py') ||
+           filePath.includes('forms.py') ||
+           filePath.includes('serializers.py') ||
+           filePath.includes('wsgi.py') ||
+           filePath.includes('asgi.py');
+}
+
+// Helper function to check if a filename matches React patterns
+function isReactFile(filename, filePath) {
+    const lowerName = filename.toLowerCase();
+    // Check for package.json
+    if (lowerName === 'package.json') return true;
+
+    // Check for React entry points in src directory
+    const reactEntryPoints = [
+        'src/index.js',
+        'src/index.jsx',
+        'src/main.jsx',
+        'src/app.js',
+        'src/app.jsx'
+    ];
+
+    const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+    return reactEntryPoints.some(pattern =>
+        normalizedPath.includes(pattern.toLowerCase())
+    );
+}
+
+// Helper function to recursively find Django files
+async function findDjangoFiles(startPath, basePath = startPath) {
+    const djangoFiles = [];
+
+    try {
+        const items = await fs.readdir(startPath, { withFileTypes: true });
+
+        for (const item of items) {
+            const fullPath = path.join(startPath, item.name);
+
+            if (item.isFile() && isDjangoFile(item.name, fullPath)) {
+                const relativePath = path.relative(basePath, fullPath);
+                djangoFiles.push({
+                    name: item.name,
+                    path: fullPath,
+                    relativePath: relativePath,
+                    directory: path.dirname(fullPath),
+                    type: getDjangoFileType(item.name, fullPath)
+                });
+            } else if (item.isDirectory() &&
+                      !item.name.startsWith('.') &&
+                      item.name !== 'node_modules' &&
+                      item.name !== '__pycache__' &&
+                      item.name !== 'migrations' &&
+                      item.name !== 'venv' &&
+                      item.name !== 'env') {
+                // Recursively search subdirectories, but skip common ignore patterns
+                try {
+                    const subDjangoFiles = await findDjangoFiles(fullPath, basePath);
+                    djangoFiles.push(...subDjangoFiles);
+                } catch (error) {
+                    // Skip directories we can't access
+                    console.log(`Skipping directory ${fullPath}: ${error.message}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Error scanning directory ${startPath}:`, error.message);
+    }
+
+    return djangoFiles;
+}
+
+// Helper function to recursively find React files
+async function findReactFiles(startPath, basePath = startPath) {
+    const reactFiles = [];
+
+    try {
+        const items = await fs.readdir(startPath, { withFileTypes: true });
+
+        for (const item of items) {
+            const fullPath = path.join(startPath, item.name);
+
+            if (item.isFile() && isReactFile(item.name, fullPath)) {
+                const relativePath = path.relative(basePath, fullPath);
+                reactFiles.push({
+                    name: item.name,
+                    path: fullPath,
+                    relativePath: relativePath,
+                    directory: path.dirname(fullPath),
+                    type: getReactFileType(item.name, fullPath)
+                });
+            } else if (item.isDirectory() &&
+                      !item.name.startsWith('.') &&
+                      item.name !== 'node_modules' &&
+                      item.name !== 'build' &&
+                      item.name !== 'dist' &&
+                      item.name !== 'coverage') {
+                // Recursively search subdirectories, but skip common ignore patterns
+                try {
+                    const subReactFiles = await findReactFiles(fullPath, basePath);
+                    reactFiles.push(...subReactFiles);
+                } catch (error) {
+                    // Skip directories we can't access
+                    console.log(`Skipping directory ${fullPath}: ${error.message}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Error scanning directory ${startPath}:`, error.message);
+    }
+
+    return reactFiles;
+}
+
+// Helper function to categorize Django file types
+function getDjangoFileType(filename, filePath) {
+    const lowerName = filename.toLowerCase();
+    if (lowerName === 'settings.py') return 'core-config';
+    if (lowerName === 'urls.py') return filePath.includes('app') ? 'app-urls' : 'project-urls';
+    if (lowerName === 'wsgi.py' || lowerName === 'asgi.py') return 'deployment';
+    if (lowerName === 'models.py') return 'data-model';
+    if (lowerName === 'views.py') return 'business-logic';
+    if (lowerName === 'admin.py') return 'admin-interface';
+    if (lowerName === 'forms.py') return 'user-input';
+    if (lowerName === 'serializers.py') return 'api-serialization';
+    return 'django-file';
+}
+
+// Helper function to categorize React file types
+function getReactFileType(filename, filePath) {
+    const lowerName = filename.toLowerCase();
+    if (lowerName === 'package.json') return 'dependency-config';
+    if (filePath.toLowerCase().includes('index.js') ||
+        filePath.toLowerCase().includes('index.jsx') ||
+        filePath.toLowerCase().includes('main.jsx')) return 'entry-point';
+    if (filePath.toLowerCase().includes('app.js') ||
+        filePath.toLowerCase().includes('app.jsx')) return 'main-component';
+    return 'react-file';
+}
+
+// ADD THIS NEW API ENDPOINT TO YOUR server.js FILE
+// (Add it before the final server.listen() call)
+
+app.post('/api/project-files', async (req, res) => {
+    try {
+        const { projectType, startPath } = req.body;
+
+        if (!projectType || !startPath) {
+            return res.status(400).json({
+                error: 'Project type and start path are required'
+            });
+        }
+
+        // Verify the start path exists
+        try {
+            const stats = await fs.stat(startPath);
+            if (!stats.isDirectory()) {
+                return res.status(400).json({
+                    error: 'Start path is not a directory'
+                });
+            }
+        } catch (error) {
+            return res.status(400).json({
+                error: 'Start path does not exist'
+            });
+        }
+
+        let projectFiles = [];
+
+        if (projectType === 'django') {
+            // Find Django files starting from the given path and going up to find more
+            projectFiles = await findDjangoFiles(startPath);
+
+            // Also search in parent directories (up to 3 levels) for project-level files
+            let currentPath = startPath;
+            for (let i = 0; i < 3; i++) {
+                const parentPath = path.dirname(currentPath);
+                if (parentPath === currentPath) break; // Reached root
+
+                try {
+                    const items = await fs.readdir(parentPath, { withFileTypes: true });
+                    for (const item of items) {
+                        if (item.isFile() && isDjangoFile(item.name, path.join(parentPath, item.name))) {
+                            const fullPath = path.join(parentPath, item.name);
+                            const relativePath = path.relative(startPath, fullPath);
+
+                            // Only add if not already found
+                            if (!projectFiles.some(f => f.path === fullPath)) {
+                                projectFiles.push({
+                                    name: item.name,
+                                    path: fullPath,
+                                    relativePath: relativePath,
+                                    directory: parentPath,
+                                    type: getDjangoFileType(item.name, fullPath)
+                                });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    // Ignore errors when scanning parent directories
+                }
+
+                currentPath = parentPath;
+            }
+
+        } else if (projectType === 'react') {
+            // Find React files starting from the given path
+            projectFiles = await findReactFiles(startPath);
+
+            // Also search in parent directories (up to 2 levels) for package.json
+            let currentPath = startPath;
+            for (let i = 0; i < 2; i++) {
+                const parentPath = path.dirname(currentPath);
+                if (parentPath === currentPath) break; // Reached root
+
+                try {
+                    const packageJsonPath = path.join(parentPath, 'package.json');
+                    const stats = await fs.stat(packageJsonPath);
+                    if (stats.isFile()) {
+                        const relativePath = path.relative(startPath, packageJsonPath);
+
+                        // Only add if not already found
+                        if (!projectFiles.some(f => f.path === packageJsonPath)) {
+                            projectFiles.push({
+                                name: 'package.json',
+                                path: packageJsonPath,
+                                relativePath: relativePath,
+                                directory: parentPath,
+                                type: 'dependency-config'
+                            });
+                        }
+                    }
+                } catch (error) {
+                    // Ignore if package.json doesn't exist in parent
+                }
+
+                currentPath = parentPath;
+            }
+
+        } else {
+            return res.status(400).json({
+                error: 'Invalid project type. Supported types: django, react'
+            });
+        }
+
+        // Remove duplicates based on path
+        const uniqueFiles = projectFiles.filter((file, index, self) =>
+            index === self.findIndex(f => f.path === file.path)
+        );
+
+        // Sort by type priority and then by name for consistent ordering
+        uniqueFiles.sort((a, b) => {
+            // Priority order for Django files
+            const djangoPriority = {
+                'core-config': 1,
+                'project-urls': 2,
+                'deployment': 3,
+                'data-model': 4,
+                'business-logic': 5,
+                'app-urls': 6,
+                'admin-interface': 7,
+                'user-input': 8,
+                'api-serialization': 9
+            };
+
+            // Priority order for React files
+            const reactPriority = {
+                'dependency-config': 1,
+                'entry-point': 2,
+                'main-component': 3
+            };
+
+            if (projectType === 'django') {
+                const aPriority = djangoPriority[a.type] || 10;
+                const bPriority = djangoPriority[b.type] || 10;
+                if (aPriority !== bPriority) return aPriority - bPriority;
+            } else if (projectType === 'react') {
+                const aPriority = reactPriority[a.type] || 10;
+                const bPriority = reactPriority[b.type] || 10;
+                if (aPriority !== bPriority) return aPriority - bPriority;
+            }
+
+            return a.name.localeCompare(b.name);
+        });
+
+        console.log(`🔧 Found ${uniqueFiles.length} ${projectType} files from ${startPath}`);
+        res.json(uniqueFiles);
+    } catch (error) {
+        console.error(`Error finding ${projectType || 'project'} files:`, error);
+        res.status(500).json({
+            error: `Failed to find ${projectType || 'project'} files`
+        });
     }
 });

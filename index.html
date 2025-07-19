@@ -137,92 +137,139 @@
 
     <!-- Settings Modal -->
     <div class="modal hidden settings-modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>⚙️ Settings</h2>
-                <button class="close-btn" id="closeSettingsModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form class="settings-form" id="settingsForm">
-                    <div class="settings-section">
-                        <h3>📁 Default Directory</h3>
-                        <div class="form-group">
-                            <label for="defaultPath">Start Directory</label>
-                            <div class="form-input-group">
-                                <input type="text" id="defaultPath" class="form-input" placeholder="/path/to/your/project">
-                                <button type="button" class="browse-btn" id="browseDefaultPath">📁 Browse</button>
-                            </div>
-                            <div class="description">Choose the directory where the file explorer should start when launched.</div>
-                            <div class="current-status">
-                                <span class="status-indicator"></span>
-                                Current: <span id="currentDefaultPath">Not set</span>
-                            </div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>⚙️ Settings</h2>
+            <button class="close-btn" id="closeSettingsModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form class="settings-form" id="settingsForm">
+                <div class="settings-section">
+                    <h3>📁 Default Directory</h3>
+                    <div class="form-group">
+                        <label for="defaultPath">Start Directory</label>
+                        <div class="form-input-group">
+                            <input type="text" id="defaultPath" class="form-input" placeholder="/path/to/your/project">
+                            <button type="button" class="browse-btn" id="browseDefaultPath">📁 Browse</button>
+                        </div>
+                        <div class="description">Choose the directory where the file explorer should start when launched.</div>
+                        <div class="current-status">
+                            <span class="status-indicator"></span>
+                            Current: <span id="currentDefaultPath">Not set</span>
                         </div>
                     </div>
+                </div>
 
-                    <div class="settings-section">
-                        <h3>🤖 AI Context Prompt</h3>
-                        <div class="form-group">
-                            <label for="customPrompt">Custom Text for Generated Files</label>
-                            <textarea
-                                id="customPrompt"
-                                class="form-textarea"
-                                placeholder="Enter text that will be added at the beginning of generated files (e.g., instructions for AI, project description, etc.)"
-                                rows="4"
-                            ></textarea>
-                            <div class="description">
-                                This text will be added at the beginning of every generated file collection.
-                                Use this to provide context, instructions, or descriptions when sharing with AI assistants.
-                            </div>
+                <div class="settings-section">
+                    <h3>🤖 AI Context Prompt</h3>
+                    <div class="form-group">
+                        <label for="customPrompt">Custom Text for Generated Files</label>
+                        <textarea
+                            id="customPrompt"
+                            class="form-textarea"
+                            placeholder="Enter text that will be added at the beginning of generated files (e.g., instructions for AI, project description, etc.)"
+                            rows="4"
+                        ></textarea>
+                        <div class="description">
+                            This text will be added at the beginning of every generated file collection.
+                            Use this to provide context, instructions, or descriptions when sharing with AI assistants.
                         </div>
                     </div>
+                </div>
 
-                    <div class="settings-section">
-                        <h3>🐳 Docker Integration</h3>
-                        <div class="form-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="includeDockerFiles">
-                                <label for="includeDockerFiles" class="checkbox-label">
-                                    <span class="checkbox-title">Auto-include Docker files</span>
+                <div class="settings-section">
+                    <h3>🔧 Project Type Detection</h3>
+                    <div class="form-group">
+                        <div class="project-type-description">
+                            <p class="description">
+                                Automatically detect and select important files based on your project type.
+                                This feature requires a default directory to be set above.
+                            </p>
+                        </div>
+
+                        <div class="project-types-grid" id="projectTypesGrid">
+                            <div class="checkbox-group project-type-checkbox">
+                                <input type="checkbox" id="includeDjangoFiles">
+                                <label for="includeDjangoFiles" class="checkbox-label">
+                                    <span class="checkbox-title">🐍 Django Project</span>
                                     <span class="checkbox-description">
-                                        Automatically include Docker-related files (Dockerfile, docker-compose.yml, .dockerignore, etc.)
-                                        from the parent directory and all subdirectories when generating file collections.
+                                        Auto-include Django core files: settings.py, urls.py, models.py, views.py,
+                                        admin.py, forms.py, serializers.py, wsgi.py/asgi.py from the project directory tree.
                                     </span>
                                 </label>
                             </div>
-                            <div id="dockerFilesPreview" class="docker-files-preview" style="display: none;">
-                                <h4>Docker files that will be included:</h4>
-                                <div id="dockerFilesList"></div>
+
+                            <div class="checkbox-group project-type-checkbox">
+                                <input type="checkbox" id="includeReactFiles">
+                                <label for="includeReactFiles" class="checkbox-label">
+                                    <span class="checkbox-title">⚛️ React Project</span>
+                                    <span class="checkbox-description">
+                                        Auto-include React core files: package.json, src/index.js, src/main.jsx,
+                                        src/App.js, src/App.jsx from the project directory tree.
+                                    </span>
+                                </label>
                             </div>
                         </div>
+
+                        <div id="projectFilesPreview" class="project-files-preview" style="display: none;">
+                            <h4>Project files that will be included:</h4>
+                            <div id="projectFilesList" class="project-files-list"></div>
+                        </div>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
-                <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
-            </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🐳 Docker Integration</h3>
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="includeDockerFiles">
+                            <label for="includeDockerFiles" class="checkbox-label">
+                                <span class="checkbox-title">Auto-include Docker files</span>
+                                <span class="checkbox-description">
+                                    Automatically include Docker-related files (Dockerfile, docker-compose.yml, .dockerignore, etc.)
+                                    from the parent directory and all subdirectories when generating file collections.
+                                </span>
+                            </label>
+                        </div>
+                        <div id="dockerFilesPreview" class="docker-files-preview" style="display: none;">
+                            <h4>Docker files that will be included:</h4>
+                            <div id="dockerFilesList"></div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+            <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
         </div>
     </div>
+</div>
 
     <script>
         class FileExplorer {
             constructor() {
-                this.currentPath = '';
-                this.selectedFiles = new Set();
-                this.fileContents = new Map();
-                this.expandedDirectories = new Set();
-                this.settings = {
-                    defaultPath: '',
-                    includeDockerFiles: false,
-                    customPrompt: ''
-                };
-                this.dockerFiles = [];
-                this.fileDependencies = new Map();
-                this.dependencyOwners = new Map();
-                this.generatedFileContent = '';
-                this.init();
-            }
+            this.currentPath = '';
+            this.selectedFiles = new Set();
+            this.fileContents = new Map();
+            this.expandedDirectories = new Set();
+            this.settings = {
+                defaultPath: '',
+                includeDockerFiles: false,
+                customPrompt: '',
+                projectTypes: {
+                    django: false,
+                    react: false
+                }
+            };
+            this.dockerFiles = [];
+            this.djangoFiles = [];
+            this.reactFiles = [];
+            this.fileDependencies = new Map();
+            this.dependencyOwners = new Map();
+            this.generatedFileContent = '';
+            this.init();
+        }
 
             async init() {
                 this.setupEventListeners();
@@ -245,6 +292,11 @@
                     await this.scanForDockerFiles();
                 }
 
+                if (this.settings.defaultPath &&
+                    (this.settings.projectTypes.django || this.settings.projectTypes.react)) {
+                    await this.scanForProjectFiles();
+                }
+
                 // Setup resizer after everything else is loaded
                 this.setupResizer();
 
@@ -264,6 +316,65 @@
                     console.log('⚠️ No settings found, using defaults');
                 }
             }
+
+            async scanForProjectFiles() {
+    // Only scan if default path is set and project types are enabled
+    if (!this.settings.defaultPath) {
+        console.log('⚠️ No default path set, skipping project file scan');
+        return;
+    }
+
+    try {
+        let scannedFiles = [];
+
+        // Scan for Django files if enabled
+        if (this.settings.projectTypes.django) {
+            console.log('🐍 Scanning for Django files...');
+            this.djangoFiles = await this.findProjectFiles('django', this.settings.defaultPath);
+            scannedFiles.push(...this.djangoFiles);
+            console.log(`🐍 Found ${this.djangoFiles.length} Django files`);
+        }
+
+        // Scan for React files if enabled
+        if (this.settings.projectTypes.react) {
+            console.log('⚛️ Scanning for React files...');
+            this.reactFiles = await this.findProjectFiles('react', this.settings.defaultPath);
+            scannedFiles.push(...this.reactFiles);
+            console.log(`⚛️ Found ${this.reactFiles.length} React files`);
+        }
+
+        // Auto-select project files
+        scannedFiles.forEach(projectFile => {
+            this.selectedFiles.add(projectFile.path);
+        });
+
+        this.updateValidateButton();
+        this.updateVisibleCheckboxes();
+
+    } catch (error) {
+        console.error('Error scanning for project files:', error);
+    }
+}
+
+            async findProjectFiles(projectType, startPath) {
+    const response = await fetch('/api/project-files', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            projectType: projectType,
+            startPath: startPath
+        })
+    });
+
+    if (response.ok) {
+        return await response.json();
+    } else {
+        console.error(`Error finding ${projectType} files:`, response.statusText);
+        return [];
+    }
+}
 
             async saveSettings() {
                 try {
@@ -363,23 +474,118 @@
             }
 
             showSettingsModal() {
-                const modal = document.getElementById('settingsModal');
-                const defaultPathInput = document.getElementById('defaultPath');
-                const includeDockerCheckbox = document.getElementById('includeDockerFiles');
-                const customPromptTextarea = document.getElementById('customPrompt');
-                const currentDefaultPath = document.getElementById('currentDefaultPath');
+    const modal = document.getElementById('settingsModal');
+    const defaultPathInput = document.getElementById('defaultPath');
+    const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+    const customPromptTextarea = document.getElementById('customPrompt');
+    const currentDefaultPath = document.getElementById('currentDefaultPath');
 
-                // Populate current settings
-                defaultPathInput.value = this.settings.defaultPath || '';
-                includeDockerCheckbox.checked = this.settings.includeDockerFiles || false;
-                customPromptTextarea.value = this.settings.customPrompt || '';
-                currentDefaultPath.textContent = this.settings.defaultPath || 'Not set';
+    // Project type checkboxes (check if they exist)
+    const djangoCheckbox = document.getElementById('includeDjangoFiles');
+    const reactCheckbox = document.getElementById('includeReactFiles');
 
-                // Update Docker files preview
-                this.updateDockerFilesPreview();
+    if (!modal) {
+        console.error('Settings modal not found');
+        return;
+    }
 
-                modal.classList.remove('hidden');
+    // Populate current settings (only if elements exist)
+    if (defaultPathInput) defaultPathInput.value = this.settings.defaultPath || '';
+    if (includeDockerCheckbox) includeDockerCheckbox.checked = this.settings.includeDockerFiles || false;
+    if (customPromptTextarea) customPromptTextarea.value = this.settings.customPrompt || '';
+    if (currentDefaultPath) currentDefaultPath.textContent = this.settings.defaultPath || 'Not set';
+
+    // Populate project type settings (only if elements exist)
+    if (djangoCheckbox) djangoCheckbox.checked = this.settings.projectTypes?.django || false;
+    if (reactCheckbox) reactCheckbox.checked = this.settings.projectTypes?.react || false;
+
+    // Update project types grid state based on default path
+    this.updateProjectTypesGridState();
+
+    // Update previews
+    this.updateDockerFilesPreview();
+    this.updateProjectFilesPreview();
+
+    modal.classList.remove('hidden');
+}
+
+            updateProjectTypesGridState() {
+    const projectTypesGrid = document.getElementById('projectTypesGrid');
+    const defaultPathInput = document.getElementById('defaultPath');
+    const includeDjangoFiles = document.getElementById('includeDjangoFiles');
+    const includeReactFiles = document.getElementById('includeReactFiles');
+
+    // Only proceed if elements exist
+    if (!projectTypesGrid || !defaultPathInput) {
+        console.log('Project types grid elements not found, skipping state update');
+        return;
+    }
+
+    if (!defaultPathInput.value.trim()) {
+        projectTypesGrid.classList.add('warning');
+        // Disable checkboxes when no default path
+        if (includeDjangoFiles) includeDjangoFiles.disabled = true;
+        if (includeReactFiles) includeReactFiles.disabled = true;
+    } else {
+        projectTypesGrid.classList.remove('warning');
+        // Enable checkboxes when default path is set
+        if (includeDjangoFiles) includeDjangoFiles.disabled = false;
+        if (includeReactFiles) includeReactFiles.disabled = false;
+    }
+}
+
+
+async updateProjectFilesPreview() {
+    const djangoCheckbox = document.getElementById('includeDjangoFiles');
+    const reactCheckbox = document.getElementById('includeReactFiles');
+    const projectFilesPreview = document.getElementById('projectFilesPreview');
+    const projectFilesList = document.getElementById('projectFilesList');
+
+    // Only proceed if elements exist
+    if (!djangoCheckbox || !reactCheckbox || !projectFilesPreview || !projectFilesList) {
+        console.log('Project files preview elements not found, skipping preview update');
+        return;
+    }
+
+    const isDjangoChecked = djangoCheckbox.checked;
+    const isReactChecked = reactCheckbox.checked;
+
+    if (isDjangoChecked || isReactChecked) {
+        projectFilesPreview.style.display = 'block';
+
+        let previewHtml = '';
+
+        if (isDjangoChecked) {
+            previewHtml += '<div class="project-files-section">';
+            previewHtml += '<h5>🐍 Django Files:</h5>';
+            if (this.djangoFiles && this.djangoFiles.length > 0) {
+                this.djangoFiles.forEach(file => {
+                    previewHtml += `<div class="project-file-item django">${file.relativePath} <span class="file-type">${file.type}</span></div>`;
+                });
+            } else {
+                previewHtml += '<div class="project-file-item no-files">No Django files found in current directory tree</div>';
             }
+            previewHtml += '</div>';
+        }
+
+        if (isReactChecked) {
+            previewHtml += '<div class="project-files-section">';
+            previewHtml += '<h5>⚛️ React Files:</h5>';
+            if (this.reactFiles && this.reactFiles.length > 0) {
+                this.reactFiles.forEach(file => {
+                    previewHtml += `<div class="project-file-item react">${file.relativePath} <span class="file-type">${file.type}</span></div>`;
+                });
+            } else {
+                previewHtml += '<div class="project-file-item no-files">No React files found in current directory tree</div>';
+            }
+            previewHtml += '</div>';
+        }
+
+        projectFilesList.innerHTML = previewHtml;
+    } else {
+        projectFilesPreview.style.display = 'none';
+    }
+}
 
             hideSettingsModal() {
                 document.getElementById('settingsModal').classList.add('hidden');
@@ -406,50 +612,91 @@
             }
 
             async saveSettingsFromModal() {
-                const defaultPathInput = document.getElementById('defaultPath');
-                const includeDockerCheckbox = document.getElementById('includeDockerFiles');
-                const customPromptTextarea = document.getElementById('customPrompt');
+    const defaultPathInput = document.getElementById('defaultPath');
+    const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+    const customPromptTextarea = document.getElementById('customPrompt');
+    const djangoCheckbox = document.getElementById('includeDjangoFiles');
+    const reactCheckbox = document.getElementById('includeReactFiles');
 
-                const newSettings = {
-                    defaultPath: defaultPathInput.value.trim(),
-                    includeDockerFiles: includeDockerCheckbox.checked,
-                    customPrompt: customPromptTextarea.value.trim()
-                };
+    const newSettings = {
+        defaultPath: defaultPathInput ? defaultPathInput.value.trim() : '',
+        includeDockerFiles: includeDockerCheckbox ? includeDockerCheckbox.checked : false,
+        customPrompt: customPromptTextarea ? customPromptTextarea.value.trim() : '',
+        projectTypes: {
+            django: djangoCheckbox ? djangoCheckbox.checked : false,
+            react: reactCheckbox ? reactCheckbox.checked : false
+        }
+    };
 
-                // Validate default path if provided
-                if (newSettings.defaultPath && !await this.directoryExists(newSettings.defaultPath)) {
-                    alert('❌ The specified default path does not exist or is not accessible.');
-                    return false;
-                }
+    // Validate default path if provided
+    if (newSettings.defaultPath && !await this.directoryExists(newSettings.defaultPath)) {
+        alert('❌ The specified default path does not exist or is not accessible.');
+        return false;
+    }
 
-                const oldSettings = { ...this.settings };
-                this.settings = { ...this.settings, ...newSettings };
+    const oldSettings = { ...this.settings };
+    this.settings = { ...this.settings, ...newSettings };
 
-                const saved = await this.saveSettings();
-                if (saved) {
-                    // If Docker setting changed, rescan
-                    if (oldSettings.includeDockerFiles !== newSettings.includeDockerFiles) {
-                        if (newSettings.includeDockerFiles) {
-                            await this.scanForDockerFiles();
-                        } else {
-                            // Remove Docker files from selection
-                            this.dockerFiles.forEach(dockerFile => {
-                                this.selectedFiles.delete(dockerFile.path);
-                            });
-                            this.dockerFiles = [];
-                            this.updateValidateButton();
-                            this.updateVisibleCheckboxes();
-                        }
-                    }
-
-                    this.hideSettingsModal();
-                    alert('✅ Settings saved successfully!');
-                    return true;
-                } else {
-                    alert('❌ Failed to save settings. Please try again.');
-                    return false;
+    const saved = await this.saveSettings();
+    if (saved) {
+        // Handle Docker setting changes
+        if (oldSettings.includeDockerFiles !== newSettings.includeDockerFiles) {
+            if (newSettings.includeDockerFiles) {
+                await this.scanForDockerFiles();
+            } else {
+                // Remove Docker files from selection
+                if (this.dockerFiles) {
+                    this.dockerFiles.forEach(dockerFile => {
+                        this.selectedFiles.delete(dockerFile.path);
+                    });
+                    this.dockerFiles = [];
                 }
             }
+        }
+
+        // Handle project type setting changes (only if project types are supported)
+        if (djangoCheckbox && reactCheckbox) {
+            const djangoChanged = oldSettings.projectTypes?.django !== newSettings.projectTypes.django;
+            const reactChanged = oldSettings.projectTypes?.react !== newSettings.projectTypes.react;
+
+            if (djangoChanged || reactChanged) {
+                // Remove old project files from selection if disabled
+                if (!newSettings.projectTypes.django && oldSettings.projectTypes?.django) {
+                    if (this.djangoFiles) {
+                        this.djangoFiles.forEach(djangoFile => {
+                            this.selectedFiles.delete(djangoFile.path);
+                        });
+                        this.djangoFiles = [];
+                    }
+                }
+
+                if (!newSettings.projectTypes.react && oldSettings.projectTypes?.react) {
+                    if (this.reactFiles) {
+                        this.reactFiles.forEach(reactFile => {
+                            this.selectedFiles.delete(reactFile.path);
+                        });
+                        this.reactFiles = [];
+                    }
+                }
+
+                // Scan for new project files if enabled and default path is set
+                if (newSettings.defaultPath &&
+                    (newSettings.projectTypes.django || newSettings.projectTypes.react)) {
+                    await this.scanForProjectFiles();
+                }
+            }
+        }
+
+        this.updateValidateButton();
+        this.updateVisibleCheckboxes();
+        this.hideSettingsModal();
+        alert('✅ Settings saved successfully!');
+        return true;
+    } else {
+        alert('❌ Failed to save settings. Please try again.');
+        return false;
+    }
+}
 
             async getCurrentWorkingDirectory() {
                 try {
@@ -487,37 +734,112 @@
             }
 
             setupEventListeners() {
-                // Existing listeners
-                document.getElementById('validateBtn').addEventListener('click', () => this.showConfirmModal());
-                document.getElementById('closeModal').addEventListener('click', () => this.hideConfirmModal());
-                document.getElementById('cancelBtn').addEventListener('click', () => this.hideConfirmModal());
-                document.getElementById('confirmBtn').addEventListener('click', () => this.generateFile());
+    // Existing listeners - only add if elements exist
+    const validateBtn = document.getElementById('validateBtn');
+    if (validateBtn) {
+        validateBtn.addEventListener('click', () => this.showConfirmModal());
+    }
 
-                // Content modal listeners
-                document.getElementById('closeContentModal').addEventListener('click', () => this.hideContentModal());
-                document.getElementById('closeContentModal2').addEventListener('click', () => this.hideContentModal());
-                document.getElementById('copyContentBtn').addEventListener('click', () => this.copyContentToClipboard());
-                document.getElementById('downloadContentBtn').addEventListener('click', () => this.downloadContent());
+    const closeModal = document.getElementById('closeModal');
+    if (closeModal) {
+        closeModal.addEventListener('click', () => this.hideConfirmModal());
+    }
 
-                // Settings modal listeners
-                document.getElementById('settingsBtn').addEventListener('click', () => this.showSettingsModal());
-                document.getElementById('closeSettingsModal').addEventListener('click', () => this.hideSettingsModal());
-                document.getElementById('cancelSettingsBtn').addEventListener('click', () => this.hideSettingsModal());
-                document.getElementById('saveSettingsBtn').addEventListener('click', () => this.saveSettingsFromModal());
+    const cancelBtn = document.getElementById('cancelBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => this.hideConfirmModal());
+    }
 
-                // Browse button for default path
-                document.getElementById('browseDefaultPath').addEventListener('click', async () => {
-                    const newPath = await this.openNativeFileBrowser();
-                    if (newPath) {
-                        document.getElementById('defaultPath').value = newPath;
-                    }
-                });
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => this.generateFile());
+    }
 
-                // Docker files checkbox
-                document.getElementById('includeDockerFiles').addEventListener('change', () => {
-                    this.updateDockerFilesPreview();
-                });
+    // Content modal listeners
+    const closeContentModal = document.getElementById('closeContentModal');
+    if (closeContentModal) {
+        closeContentModal.addEventListener('click', () => this.hideContentModal());
+    }
+
+    const closeContentModal2 = document.getElementById('closeContentModal2');
+    if (closeContentModal2) {
+        closeContentModal2.addEventListener('click', () => this.hideContentModal());
+    }
+
+    const copyContentBtn = document.getElementById('copyContentBtn');
+    if (copyContentBtn) {
+        copyContentBtn.addEventListener('click', () => this.copyContentToClipboard());
+    }
+
+    const downloadContentBtn = document.getElementById('downloadContentBtn');
+    if (downloadContentBtn) {
+        downloadContentBtn.addEventListener('click', () => this.downloadContent());
+    }
+
+    // Settings modal listeners
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => this.showSettingsModal());
+    }
+
+    const closeSettingsModal = document.getElementById('closeSettingsModal');
+    if (closeSettingsModal) {
+        closeSettingsModal.addEventListener('click', () => this.hideSettingsModal());
+    }
+
+    const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+    if (cancelSettingsBtn) {
+        cancelSettingsBtn.addEventListener('click', () => this.hideSettingsModal());
+    }
+
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', () => this.saveSettingsFromModal());
+    }
+
+    // Browse button for default path
+    const browseDefaultPath = document.getElementById('browseDefaultPath');
+    if (browseDefaultPath) {
+        browseDefaultPath.addEventListener('click', async () => {
+            const newPath = await this.openNativeFileBrowser();
+            if (newPath) {
+                document.getElementById('defaultPath').value = newPath;
+                this.updateProjectTypesGridState();
             }
+        });
+    }
+
+    // Default path input changes
+    const defaultPath = document.getElementById('defaultPath');
+    if (defaultPath) {
+        defaultPath.addEventListener('input', () => {
+            this.updateProjectTypesGridState();
+        });
+    }
+
+    // Docker files checkbox
+    const includeDockerFiles = document.getElementById('includeDockerFiles');
+    if (includeDockerFiles) {
+        includeDockerFiles.addEventListener('change', () => {
+            this.updateDockerFilesPreview();
+        });
+    }
+
+    // Project type checkboxes - only add if elements exist
+    const includeDjangoFiles = document.getElementById('includeDjangoFiles');
+    if (includeDjangoFiles) {
+        includeDjangoFiles.addEventListener('change', () => {
+            this.updateProjectFilesPreview();
+        });
+    }
+
+    const includeReactFiles = document.getElementById('includeReactFiles');
+    if (includeReactFiles) {
+        includeReactFiles.addEventListener('change', () => {
+            this.updateProjectFilesPreview();
+    });
+    }
+}
 
             // Replace your setupResizer method with this safer version:
             setupResizer() {
@@ -652,75 +974,97 @@
             }
 
             createFileItem(file, basePath) {
-                const item = document.createElement('div');
-                item.className = 'file-item';
-                item.dataset.path = file.path;
-                item.dataset.type = file.type;
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.dataset.path = file.path;
+    item.dataset.type = file.type;
 
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'checkbox';
-                checkbox.checked = this.selectedFiles.has(file.path);
-                checkbox.addEventListener('change', (e) => {
-                 this.handleManualFileSelection(file, e.target.checked);
-                 this.handleFileSelection(file, e.target.checked);
-                });
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'checkbox';
+    checkbox.checked = this.selectedFiles.has(file.path);
+    checkbox.addEventListener('change', (e) => {
+        this.handleManualFileSelection(file, e.target.checked);
+        this.handleFileSelection(file, e.target.checked);
+    });
 
-                const icon = document.createElement('div');
-                icon.className = 'file-icon';
+    const icon = document.createElement('div');
+    icon.className = 'file-icon';
 
-                if (file.type === 'directory') {
-                    const arrow = document.createElement('div');
-                    arrow.className = 'directory-arrow';
-                    if (this.expandedDirectories.has(file.path)) {
-                        arrow.classList.add('expanded');
-                    }
-                    item.appendChild(arrow);
-                    icon.innerHTML = '📁';
-                } else {
-                    icon.innerHTML = this.getFileIcon(file.name);
-                }
+    if (file.type === 'directory') {
+        const arrow = document.createElement('div');
+        arrow.className = 'directory-arrow';
+        if (this.expandedDirectories.has(file.path)) {
+            arrow.classList.add('expanded');
+        }
+        item.appendChild(arrow);
+        icon.innerHTML = '📁';
+    } else {
+        icon.innerHTML = this.getFileIcon(file.name);
+    }
 
-                const name = document.createElement('span');
-                name.className = 'file-name';
-                name.textContent = file.name;
+    const name = document.createElement('span');
+    name.className = 'file-name';
+    name.textContent = file.name;
 
-                const size = document.createElement('span');
-                size.className = 'file-size';
-                if (file.type === 'file') {
-                    size.textContent = this.formatFileSize(file.size);
-                }
+    const size = document.createElement('span');
+    size.className = 'file-size';
+    if (file.type === 'file') {
+        size.textContent = this.formatFileSize(file.size);
+    }
 
-                item.appendChild(checkbox);
-                item.appendChild(icon);
-                item.appendChild(name);
-                if (file.type === 'file') {
-                    item.appendChild(size);
-                }
+    item.appendChild(checkbox);
+    item.appendChild(icon);
+    item.appendChild(name);
+    if (file.type === 'file') {
+        item.appendChild(size);
+    }
 
-                // Add Docker indicator if this is a Docker file
-                if (this.dockerFiles.some(dockerFile => dockerFile.path === file.path)) {
-                    const dockerIndicator = document.createElement('span');
-                    dockerIndicator.className = 'dependency-indicator';
-                    dockerIndicator.textContent = '🐳';
-                    dockerIndicator.title = 'Docker file (auto-included)';
-                    dockerIndicator.style.background = '#0066cc';
-                    item.appendChild(dockerIndicator);
-                }
+    // Add Docker indicator if this is a Docker file
+    if (this.dockerFiles.some(dockerFile => dockerFile.path === file.path)) {
+        const dockerIndicator = document.createElement('span');
+        dockerIndicator.className = 'dependency-indicator';
+        dockerIndicator.textContent = '🐳';
+        dockerIndicator.title = 'Docker file (auto-included)';
+        dockerIndicator.style.background = '#0066cc';
+        item.appendChild(dockerIndicator);
+    }
 
-                // Add click handlers
-                if (file.type === 'directory') {
-                    name.addEventListener('click', () => this.loadDirectory(file.path));
-                    item.querySelector('.directory-arrow').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.toggleDirectory(item, file.path);
-                    });
-                } else {
-                    name.addEventListener('click', () => this.loadFileContent(file));
-                }
+    // Add Django indicator if this is a Django file
+    if (this.djangoFiles.some(djangoFile => djangoFile.path === file.path)) {
+        const djangoIndicator = document.createElement('span');
+        djangoIndicator.className = 'dependency-indicator';
+        djangoIndicator.textContent = '🐍';
+        djangoIndicator.title = 'Django file (auto-included)';
+        djangoIndicator.style.background = '#092e20';
+        djangoIndicator.style.color = '#7fb069';
+        item.appendChild(djangoIndicator);
+    }
 
-                return item;
-            }
+    // Add React indicator if this is a React file
+    if (this.reactFiles.some(reactFile => reactFile.path === file.path)) {
+        const reactIndicator = document.createElement('span');
+        reactIndicator.className = 'dependency-indicator';
+        reactIndicator.textContent = '⚛️';
+        reactIndicator.title = 'React file (auto-included)';
+        reactIndicator.style.background = '#61dafb';
+        reactIndicator.style.color = '#000';
+        item.appendChild(reactIndicator);
+    }
+
+    // Add click handlers
+    if (file.type === 'directory') {
+        name.addEventListener('click', () => this.loadDirectory(file.path));
+        item.querySelector('.directory-arrow').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleDirectory(item, file.path);
+        });
+    } else {
+        name.addEventListener('click', () => this.loadFileContent(file));
+    }
+
+    return item;
+}
 
             getFileIcon(filename) {
                 const ext = filename.split('.').pop()?.toLowerCase();
@@ -808,28 +1152,54 @@
             }
 
             async handleFileSelection(file, isSelected) {
-                if (isSelected) {
-                    this.selectedFiles.add(file.path);
-                    if (file.type === 'file') {
-                        await this.analyzeFileDependencies(file);
-                    } else if (file.type === 'directory') {
-                        await this.selectDirectoryContents(file.path);
-                    }
-                } else {
-                    // Remove the file itself
-                    this.selectedFiles.delete(file.path);
+    if (isSelected) {
+        this.selectedFiles.add(file.path);
+        if (file.type === 'file') {
+            await this.analyzeFileDependencies(file);
+        } else if (file.type === 'directory') {
+            await this.selectDirectoryContents(file.path);
+        }
+    } else {
+        // Remove the file itself
+        this.selectedFiles.delete(file.path);
 
-                    // Remove its dependencies if no other files depend on them
-                    if (file.type === 'file') {
-                        await this.removeDependencies(file.path);
-                    } else if (file.type === 'directory') {
-                        await this.deselectDirectoryContents(file.path);
-                    }
-                }
+        // Check if this file was auto-selected as part of project types or Docker
+        const wasDockerFile = this.dockerFiles.some(dockerFile => dockerFile.path === file.path);
+        const wasDjangoFile = this.djangoFiles.some(djangoFile => djangoFile.path === file.path);
+        const wasReactFile = this.reactFiles.some(reactFile => reactFile.path === file.path);
 
-                this.updateValidateButton();
+        // If it was an auto-selected file, warn the user
+        if (wasDockerFile || wasDjangoFile || wasReactFile) {
+            let fileType = '';
+            if (wasDockerFile) fileType = 'Docker';
+            if (wasDjangoFile) fileType = 'Django';
+            if (wasReactFile) fileType = 'React';
+
+            const confirmDeselect = confirm(
+                `This file was auto-selected as a ${fileType} file. ` +
+                `Deselecting it may affect your project analysis. ` +
+                `Continue with deselection?`
+            );
+
+            if (!confirmDeselect) {
+                // Re-select the file and update UI
+                this.selectedFiles.add(file.path);
                 this.updateVisibleCheckboxes();
+                return;
             }
+        }
+
+        // Remove its dependencies if no other files depend on them
+        if (file.type === 'file') {
+            await this.removeDependencies(file.path);
+        } else if (file.type === 'directory') {
+            await this.deselectDirectoryContents(file.path);
+        }
+    }
+
+    this.updateValidateButton();
+    this.updateVisibleCheckboxes();
+}
 
             async removeDependencies(filePath) {
                 const dependencies = this.fileDependencies.get(filePath);
@@ -1434,124 +1804,158 @@
             }
 
             async generateFile() {
-                try {
-                    const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
-                        const item = document.querySelector(`[data-path="${path}"]`);
-                        return !item || item.dataset.type === 'file';
-                    });
+    try {
+        const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+            const item = document.querySelector(`[data-path="${path}"]`);
+            return !item || item.dataset.type === 'file';
+        });
 
-                    let output = '';
+        let output = '';
 
-                    // Add custom prompt at the beginning if provided
-                    if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
-                        output += this.settings.customPrompt.trim() + '\n\n';
-                        output += '='.repeat(80) + '\n\n';
-                    }
+        // Add custom prompt at the beginning if provided
+        if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+            output += this.settings.customPrompt.trim() + '\n\n';
+            output += '='.repeat(80) + '\n\n';
+        }
 
-                    output += 'FILE COLLECTION\n';
-                    output += '='.repeat(80) + '\n\n';
-                    output += `Generated: ${new Date().toISOString()}\n`;
-                    output += `Total files: ${selectedFilesList.length}\n`;
-                    output += `Root directory: ${this.currentPath}\n`;
-                    if (this.dockerFiles.length > 0) {
-                        output += `Docker files included: ${this.dockerFiles.length}\n`;
-                    }
-                    output += `Output saved to: output_files_selected/ directory\n`;
-                    output += '\n';
+        output += 'FILE COLLECTION\n';
+        output += '='.repeat(80) + '\n\n';
+        output += `Generated: ${new Date().toISOString()}\n`;
+        output += `Total files: ${selectedFilesList.length}\n`;
+        output += `Root directory: ${this.currentPath}\n`;
 
-                    for (const filePath of selectedFilesList.sort()) {
-                        try {
-                            if (typeof filePath !== 'string') {
-                                console.error('Invalid filePath type:', typeof filePath, filePath);
-                                continue;
-                            }
+        // Add project type information
+        const enabledProjectTypes = [];
+        if (this.settings.projectTypes.django && this.djangoFiles.length > 0) {
+            enabledProjectTypes.push(`Django (${this.djangoFiles.length} files)`);
+        }
+        if (this.settings.projectTypes.react && this.reactFiles.length > 0) {
+            enabledProjectTypes.push(`React (${this.reactFiles.length} files)`);
+        }
+        if (enabledProjectTypes.length > 0) {
+            output += `Project types detected: ${enabledProjectTypes.join(', ')}\n`;
+        }
 
-                            const content = await this.getFileContent(filePath);
-                            const fileName = filePath.split('/').pop();
-                            const directory = filePath.substring(0, filePath.lastIndexOf('/'));
-                            const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+        if (this.dockerFiles.length > 0) {
+            output += `Docker files included: ${this.dockerFiles.length}\n`;
+        }
+        output += `Output saved to: output_files_selected/ directory\n`;
+        output += '\n';
 
-                            output += '='.repeat(80) + '\n';
-                            output += `filename: ${fileName}\n`;
-                            output += `directory: ${directory}\n`;
-                            output += `relative_path: ${relativePath}\n`;
-                            output += `full_path: ${filePath}\n`;
-
-                            if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
-                                output += `type: docker\n`;
-                            }
-
-                            if (content && content.isBinary) {
-                                output += `type: binary\n`;
-                                output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
-                            } else if (content) {
-                                output += `type: text\n`;
-                                output += `lines: ${content.lines}\n`;
-                                output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
-                            }
-
-                            output += '='.repeat(80) + '\n\n';
-
-                            if (content && !content.isBinary) {
-                                output += content.content;
-                            } else if (content && content.isBinary) {
-                                output += '// Binary file - content not included\n';
-                            } else {
-                                output += '// Could not read file content\n';
-                            }
-
-                            output += '\n\n';
-                        } catch (error) {
-                            console.error(`Error processing file ${filePath}:`, error);
-                            const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
-                            const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
-
-                            output += '='.repeat(80) + '\n';
-                            output += `filename: ${fileName}\n`;
-                            output += `directory: ${directory}\n`;
-                            output += `full_path: ${filePath}\n`;
-                            output += `error: ${error.message}\n`;
-                            output += '='.repeat(80) + '\n\n';
-                            output += '// Error reading file\n\n';
-                        }
-                    }
-
-                    // Store the generated content
-                    this.generatedFileContent = output;
-
-                    // Save file using the server's API
-                    const response = await fetch('/api/save', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'text/plain',
-                        },
-                        body: output
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Hide confirmation modal first
-                        this.hideConfirmModal();
-
-                        // Show enhanced success message
-                        alert(`✅ File saved successfully!\n\n` +
-                              `📁 Directory: output_files_selected/\n` +
-                              `📄 Filename: ${result.filename}\n` +
-                              `📍 Full path: ${result.relativePath}\n\n` +
-                              `The file content will now be displayed for preview.`);
-
-                        // Show content modal
-                        this.showContentModal();
-                    } else {
-                        alert(`❌ Error saving file: ${result.error}`);
-                    }
-
-                } catch (error) {
-                    console.error('Error generating file:', error);
-                    alert(`❌ Error generating file: ${error.message}`);
+        for (const filePath of selectedFilesList.sort()) {
+            try {
+                if (typeof filePath !== 'string') {
+                    console.error('Invalid filePath type:', typeof filePath, filePath);
+                    continue;
                 }
+
+                const content = await this.getFileContent(filePath);
+                const fileName = filePath.split('/').pop();
+                const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+
+                output += '='.repeat(80) + '\n';
+                output += `filename: ${fileName}\n`;
+                output += `directory: ${directory}\n`;
+                output += `relative_path: ${relativePath}\n`;
+                output += `full_path: ${filePath}\n`;
+
+                // Add project type classifications
+                const classifications = [];
+                if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
+                    classifications.push('docker');
+                }
+                if (this.djangoFiles.some(djangoFile => djangoFile.path === filePath)) {
+                    const djangoFile = this.djangoFiles.find(df => df.path === filePath);
+                    classifications.push(`django-${djangoFile.type}`);
+                }
+                if (this.reactFiles.some(reactFile => reactFile.path === filePath)) {
+                    const reactFile = this.reactFiles.find(rf => rf.path === filePath);
+                    classifications.push(`react-${reactFile.type}`);
+                }
+
+                if (classifications.length > 0) {
+                    output += `classification: ${classifications.join(', ')}\n`;
+                }
+
+                if (content && content.isBinary) {
+                    output += `type: binary\n`;
+                    output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
+                } else if (content) {
+                    output += `type: text\n`;
+                    output += `lines: ${content.lines}\n`;
+                    output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
+                }
+
+                output += '='.repeat(80) + '\n\n';
+
+                if (content && !content.isBinary) {
+                    output += content.content;
+                } else if (content && content.isBinary) {
+                    output += '// Binary file - content not included\n';
+                } else {
+                    output += '// Could not read file content\n';
+                }
+
+                output += '\n\n';
+            } catch (error) {
+                console.error(`Error processing file ${filePath}:`, error);
+                const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
+                const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
+
+                output += '='.repeat(80) + '\n';
+                output += `filename: ${fileName}\n`;
+                output += `directory: ${directory}\n`;
+                output += `full_path: ${filePath}\n`;
+                output += `error: ${error.message}\n`;
+                output += '='.repeat(80) + '\n\n';
+                output += '// Error reading file\n\n';
             }
+        }
+
+        // Store the generated content
+        this.generatedFileContent = output;
+
+        // Save file using the server's API
+        const response = await fetch('/api/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain',
+            },
+            body: output
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Hide confirmation modal first
+            this.hideConfirmModal();
+
+            // Show enhanced success message with project info
+            let successMessage = `✅ File saved successfully!\n\n` +
+                               `📁 Directory: output_files_selected/\n` +
+                               `📄 Filename: ${result.filename}\n` +
+                               `📍 Full path: ${result.relativePath}\n`;
+
+            if (enabledProjectTypes.length > 0) {
+                successMessage += `🔧 Project types: ${enabledProjectTypes.join(', ')}\n`;
+            }
+
+            successMessage += `\nThe file content will now be displayed for preview.`;
+
+            alert(successMessage);
+
+            // Show content modal
+            this.showContentModal();
+        } else {
+            alert(`❌ Error saving file: ${result.error}`);
+        }
+
+    } catch (error) {
+        console.error('Error generating file:', error);
+        alert(`❌ Error generating file: ${error.message}`);
+    }
+}
 
             showContentModal() {
                 const modal = document.getElementById('contentModal');
