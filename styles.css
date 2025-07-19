@@ -492,8 +492,6 @@ body {
     border-radius: 4px;
 }
 
-/* Add these styles to your styles.css file */
-
 /* Settings Button */
 .settings-btn {
     background: #21262d;
@@ -558,6 +556,30 @@ body {
     outline: none;
     border-color: #58a6ff;
     box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+.form-textarea {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #f0f6fc;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    transition: border-color 0.2s;
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-textarea:focus {
+    outline: none;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+.form-textarea::placeholder {
+    color: #7d8590;
 }
 
 .form-input-group {
@@ -681,7 +703,6 @@ body {
     border-radius: 50%;
     background: #238636;
 }
-
 
 /* Resizer handle */
 .resizer {

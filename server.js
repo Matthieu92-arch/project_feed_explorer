@@ -127,17 +127,39 @@ app.get('/api/file/:path(*)', async (req, res) => {
 });
 
 app.get('/api/exists/:path(*)', async (req, res) => {
+    let originalPath;
+    let filePath;
     try {
-        const filePath = '/' + (req.params.path || '');
-        await fs.access(filePath);
+        originalPath = req.params.path;
+        filePath = decodeURIComponent(originalPath);
+
+        // If the path doesn't start with / or a drive letter, it might be an absolute path
+        // that had its leading slash removed for the API call
+        if (!path.isAbsolute(filePath) && !filePath.match(/^[A-Za-z]:/)) {
+            // Try as absolute path first (add back the leading slash for Unix paths)
+            filePath = '/' + filePath;
+        }
+
+        console.log(`🔍 Checking path existence: "${filePath}" (original: "${originalPath}")`);
+
         const stats = await fs.stat(filePath);
-        res.json({
+        const result = {
             exists: true,
             isFile: stats.isFile(),
-            isDirectory: stats.isDirectory()
+            isDirectory: stats.isDirectory(),
+            size: stats.isFile() ? stats.size : 0
+        };
+
+        console.log(`✅ Path check result for "${filePath}":`, result);
+        res.json(result);
+    } catch (error) {
+        console.log(`❌ Path check failed for "${filePath || originalPath}": ${error.message}`);
+        res.json({
+            exists: false,
+            isFile: false,
+            isDirectory: false,
+            size: 0
         });
-    } catch {
-        res.json({ exists: false });
     }
 });
 
@@ -270,8 +292,6 @@ async function findDockerFiles(startPath, basePath = startPath) {
     return dockerFiles;
 }
 
-// ADD THESE ENDPOINTS TO YOUR EXPRESS APP:
-
 // Get settings
 app.get('/api/settings', async (req, res) => {
     try {
@@ -282,7 +302,8 @@ app.get('/api/settings', async (req, res) => {
         // Return default settings if file doesn't exist
         res.json({
             defaultPath: '',
-            includeDockerFiles: false
+            includeDockerFiles: false,
+            customPrompt: ''
         });
     }
 });
@@ -294,7 +315,8 @@ app.post('/api/settings', async (req, res) => {
 
         // Validate settings
         if (typeof settings.defaultPath !== 'string' ||
-            typeof settings.includeDockerFiles !== 'boolean') {
+            typeof settings.includeDockerFiles !== 'boolean' ||
+            typeof settings.customPrompt !== 'string') {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid settings format'
@@ -403,36 +425,6 @@ app.post('/api/docker-files', async (req, res) => {
         console.error('Error finding Docker files:', error);
         res.status(500).json({
             error: 'Failed to find Docker files'
-        });
-    }
-});
-
-// Update the existing /api/exists endpoint to handle better path resolution
-app.get('/api/exists/:path(*)', async (req, res) => {
-    try {
-        let filePath = req.params.path;
-
-        // Handle encoded paths
-        filePath = decodeURIComponent(filePath);
-
-        // Ensure we have an absolute path
-        if (!path.isAbsolute(filePath)) {
-            filePath = path.resolve(filePath);
-        }
-
-        const stats = await fs.stat(filePath);
-        res.json({
-            exists: true,
-            isFile: stats.isFile(),
-            isDirectory: stats.isDirectory(),
-            size: stats.isFile() ? stats.size : 0
-        });
-    } catch (error) {
-        res.json({
-            exists: false,
-            isFile: false,
-            isDirectory: false,
-            size: 0
         });
     }
 });

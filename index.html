@@ -121,6 +121,23 @@
                     </div>
 
                     <div class="settings-section">
+                        <h3>🤖 AI Context Prompt</h3>
+                        <div class="form-group">
+                            <label for="customPrompt">Custom Text for Generated Files</label>
+                            <textarea
+                                id="customPrompt"
+                                class="form-textarea"
+                                placeholder="Enter text that will be added at the beginning of generated files (e.g., instructions for AI, project description, etc.)"
+                                rows="4"
+                            ></textarea>
+                            <div class="description">
+                                This text will be added at the beginning of every generated file collection.
+                                Use this to provide context, instructions, or descriptions when sharing with AI assistants.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
                         <h3>🐳 Docker Integration</h3>
                         <div class="form-group">
                             <div class="checkbox-group">
@@ -157,7 +174,8 @@
                 this.expandedDirectories = new Set();
                 this.settings = {
                     defaultPath: '',
-                    includeDockerFiles: false
+                    includeDockerFiles: false,
+                    customPrompt: ''
                 };
                 this.dockerFiles = [];
                 this.fileDependencies = new Map();
@@ -185,6 +203,9 @@
                 if (this.settings.includeDockerFiles) {
                     await this.scanForDockerFiles();
                 }
+
+                // Setup resizer after everything else is loaded
+                this.setupResizer();
 
                 // Make this instance globally accessible for the browse button
                 window.fileExplorer = this;
@@ -228,8 +249,20 @@
 
             async directoryExists(path) {
                 try {
-                    const pathForAPI = path.startsWith('/') ? path.substring(1) : path;
-                    const encodedPath = encodeURIComponent(pathForAPI);
+                    // For absolute paths, we need to handle them differently
+                    let apiPath;
+                    if (path.startsWith('/')) {
+                        // Unix-style absolute path - use as is after removing leading slash
+                        apiPath = path.substring(1);
+                    } else if (path.match(/^[A-Za-z]:/)) {
+                        // Windows-style absolute path (C:, D:, etc.) - use as is
+                        apiPath = path;
+                    } else {
+                        // Relative path - use as is
+                        apiPath = path;
+                    }
+
+                    const encodedPath = encodeURIComponent(apiPath);
                     const response = await fetch(`/api/exists/${encodedPath}`);
                     const result = await response.json();
                     return result.exists && result.isDirectory;
@@ -267,36 +300,38 @@
             }
 
             async openNativeFileBrowser() {
-    try {
-        const response = await fetch('/api/browse-directory', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
+                try {
+                    const response = await fetch('/api/browse-directory', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success && result.path) {
+                        return result.path;
+                    } else {
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('Error opening file browser:', error);
+                    return null;
+                }
             }
-        });
-
-        const result = await response.json();
-
-        if (result.success && result.path) {
-            return result.path;
-        } else {
-            return null;
-        }
-    } catch (error) {
-        console.error('Error opening file browser:', error);
-        return null;
-    }
-}
 
             showSettingsModal() {
                 const modal = document.getElementById('settingsModal');
                 const defaultPathInput = document.getElementById('defaultPath');
                 const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+                const customPromptTextarea = document.getElementById('customPrompt');
                 const currentDefaultPath = document.getElementById('currentDefaultPath');
 
                 // Populate current settings
                 defaultPathInput.value = this.settings.defaultPath || '';
                 includeDockerCheckbox.checked = this.settings.includeDockerFiles || false;
+                customPromptTextarea.value = this.settings.customPrompt || '';
                 currentDefaultPath.textContent = this.settings.defaultPath || 'Not set';
 
                 // Update Docker files preview
@@ -332,10 +367,12 @@
             async saveSettingsFromModal() {
                 const defaultPathInput = document.getElementById('defaultPath');
                 const includeDockerCheckbox = document.getElementById('includeDockerFiles');
+                const customPromptTextarea = document.getElementById('customPrompt');
 
                 const newSettings = {
                     defaultPath: defaultPathInput.value.trim(),
-                    includeDockerFiles: includeDockerCheckbox.checked
+                    includeDockerFiles: includeDockerCheckbox.checked,
+                    customPrompt: customPromptTextarea.value.trim()
                 };
 
                 // Validate default path if provided
@@ -385,28 +422,28 @@
             }
 
             async changeRootDirectory() {
-    const newPath = await this.openNativeFileBrowser();
-    if (newPath && newPath !== this.currentPath) {
-        try {
-            await this.loadDirectory(newPath);
-            document.getElementById('currentPath').textContent = newPath;
-            this.selectedFiles.clear();
-            this.fileContents.clear();
-            this.expandedDirectories.clear();
-            this.fileDependencies.clear();
-            this.dependencyOwners.clear();
-            this.currentPath = newPath;
+                const newPath = await this.openNativeFileBrowser();
+                if (newPath && newPath !== this.currentPath) {
+                    try {
+                        await this.loadDirectory(newPath);
+                        document.getElementById('currentPath').textContent = newPath;
+                        this.selectedFiles.clear();
+                        this.fileContents.clear();
+                        this.expandedDirectories.clear();
+                        this.fileDependencies.clear();
+                        this.dependencyOwners.clear();
+                        this.currentPath = newPath;
 
-            if (this.settings.includeDockerFiles) {
-                await this.scanForDockerFiles();
+                        if (this.settings.includeDockerFiles) {
+                            await this.scanForDockerFiles();
+                        }
+
+                        this.updateValidateButton();
+                    } catch (error) {
+                        alert(`Error accessing directory: ${error.message}`);
+                    }
+                }
             }
-
-            this.updateValidateButton();
-        } catch (error) {
-            alert(`Error accessing directory: ${error.message}`);
-        }
-    }
-}
 
             setupEventListeners() {
                 // Existing listeners
@@ -423,11 +460,11 @@
 
                 // Browse button for default path
                 document.getElementById('browseDefaultPath').addEventListener('click', async () => {
-    const newPath = await this.openNativeFileBrowser();
-    if (newPath) {
-        document.getElementById('defaultPath').value = newPath;
-    }
-});
+                    const newPath = await this.openNativeFileBrowser();
+                    if (newPath) {
+                        document.getElementById('defaultPath').value = newPath;
+                    }
+                });
 
                 // Docker files checkbox
                 document.getElementById('includeDockerFiles').addEventListener('change', () => {
@@ -435,127 +472,99 @@
                 });
             }
 
-            async init() {
-    this.setupEventListeners();
+            // Replace your setupResizer method with this safer version:
+            setupResizer() {
+                try {
+                    const resizer = document.getElementById('resizer');
+                    const fileContent = document.querySelector('.file-content');
+                    const fileExplorer = document.querySelector('.file-explorer');
+                    const resizeIndicator = document.getElementById('resizeIndicator');
 
-    // Load settings first
-    await this.loadSettings();
+                    // Check if all required elements exist
+                    if (!resizer || !fileContent || !fileExplorer) {
+                        console.warn('Resizer elements not found, skipping resizer setup');
+                        return;
+                    }
 
-    // Start from settings default path or server's current working directory
-    if (this.settings.defaultPath && await this.directoryExists(this.settings.defaultPath)) {
-        this.currentPath = this.settings.defaultPath;
-    } else {
-        this.currentPath = await this.getCurrentWorkingDirectory();
-    }
+                    let isResizing = false;
+                    let startX = 0;
+                    let startFileContentWidth = 0;
+                    let startFileExplorerWidth = 0;
 
-    document.getElementById('currentPath').textContent = this.currentPath;
-    await this.loadDirectory(this.currentPath);
+                    resizer.addEventListener('mousedown', (e) => {
+                        isResizing = true;
+                        startX = e.clientX;
+                        startFileContentWidth = fileContent.offsetWidth;
+                        startFileExplorerWidth = fileExplorer.offsetWidth;
 
-    // Scan for Docker files if enabled
-    if (this.settings.includeDockerFiles) {
-        await this.scanForDockerFiles();
-    }
+                        resizer.classList.add('dragging');
+                        if (resizeIndicator) {
+                            resizeIndicator.style.opacity = '1';
+                        }
 
-    // Setup resizer after everything else is loaded
-    this.setupResizer();
+                        document.body.style.cursor = 'ew-resize';
+                        document.body.style.userSelect = 'none';
 
-    // Make this instance globally accessible for the browse button
-    window.fileExplorer = this;
-}
+                        e.preventDefault();
+                    });
 
-// Replace your setupResizer method with this safer version:
-setupResizer() {
-    try {
-        const resizer = document.getElementById('resizer');
-        const fileContent = document.querySelector('.file-content');
-        const fileExplorer = document.querySelector('.file-explorer');
-        const resizeIndicator = document.getElementById('resizeIndicator');
+                    document.addEventListener('mousemove', (e) => {
+                        if (!isResizing) return;
 
-        // Check if all required elements exist
-        if (!resizer || !fileContent || !fileExplorer) {
-            console.warn('Resizer elements not found, skipping resizer setup');
-            return;
-        }
+                        const deltaX = e.clientX - startX;
+                        const mainContainer = document.querySelector('.main-container');
+                        if (!mainContainer) return;
 
-        let isResizing = false;
-        let startX = 0;
-        let startFileContentWidth = 0;
-        let startFileExplorerWidth = 0;
+                        const containerWidth = mainContainer.offsetWidth;
 
-        resizer.addEventListener('mousedown', (e) => {
-            isResizing = true;
-            startX = e.clientX;
-            startFileContentWidth = fileContent.offsetWidth;
-            startFileExplorerWidth = fileExplorer.offsetWidth;
+                        // Calculate new widths
+                        let newFileContentWidth = startFileContentWidth + deltaX;
+                        let newFileExplorerWidth = startFileExplorerWidth - deltaX;
 
-            resizer.classList.add('dragging');
-            if (resizeIndicator) {
-                resizeIndicator.style.opacity = '1';
+                        // Set minimum and maximum widths
+                        const minFileContentWidth = 300;
+                        const maxFileContentWidth = containerWidth - 250; // Leave at least 250px for explorer
+                        const minFileExplorerWidth = 250;
+                        const maxFileExplorerWidth = 800;
+
+                        // Constrain the widths
+                        newFileContentWidth = Math.max(minFileContentWidth, Math.min(maxFileContentWidth, newFileContentWidth));
+                        newFileExplorerWidth = Math.max(minFileExplorerWidth, Math.min(maxFileExplorerWidth, containerWidth - newFileContentWidth));
+
+                        // Apply the new widths
+                        fileContent.style.flex = 'none';
+                        fileContent.style.width = newFileContentWidth + 'px';
+                        fileExplorer.style.width = newFileExplorerWidth + 'px';
+
+                        e.preventDefault();
+                    });
+
+                    document.addEventListener('mouseup', () => {
+                        if (!isResizing) return;
+
+                        isResizing = false;
+                        resizer.classList.remove('dragging');
+                        if (resizeIndicator) {
+                            resizeIndicator.style.opacity = '0';
+                        }
+
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    });
+
+                    // Handle double-click to reset to default sizes
+                    resizer.addEventListener('dblclick', () => {
+                        fileContent.style.flex = '1';
+                        fileContent.style.width = '';
+                        fileExplorer.style.width = '400px';
+                    });
+
+                    console.log('✅ Resizer setup completed successfully');
+                } catch (error) {
+                    console.error('❌ Error setting up resizer:', error);
+                    // Don't let resizer errors break the app
+                }
             }
-
-            document.body.style.cursor = 'ew-resize';
-            document.body.style.userSelect = 'none';
-
-            e.preventDefault();
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
-
-            const deltaX = e.clientX - startX;
-            const mainContainer = document.querySelector('.main-container');
-            if (!mainContainer) return;
-
-            const containerWidth = mainContainer.offsetWidth;
-
-            // Calculate new widths
-            let newFileContentWidth = startFileContentWidth + deltaX;
-            let newFileExplorerWidth = startFileExplorerWidth - deltaX;
-
-            // Set minimum and maximum widths
-            const minFileContentWidth = 300;
-            const maxFileContentWidth = containerWidth - 250; // Leave at least 250px for explorer
-            const minFileExplorerWidth = 250;
-            const maxFileExplorerWidth = 800;
-
-            // Constrain the widths
-            newFileContentWidth = Math.max(minFileContentWidth, Math.min(maxFileContentWidth, newFileContentWidth));
-            newFileExplorerWidth = Math.max(minFileExplorerWidth, Math.min(maxFileExplorerWidth, containerWidth - newFileContentWidth));
-
-            // Apply the new widths
-            fileContent.style.flex = 'none';
-            fileContent.style.width = newFileContentWidth + 'px';
-            fileExplorer.style.width = newFileExplorerWidth + 'px';
-
-            e.preventDefault();
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (!isResizing) return;
-
-            isResizing = false;
-            resizer.classList.remove('dragging');
-            if (resizeIndicator) {
-                resizeIndicator.style.opacity = '0';
-            }
-
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        });
-
-        // Handle double-click to reset to default sizes
-        resizer.addEventListener('dblclick', () => {
-            fileContent.style.flex = '1';
-            fileContent.style.width = '';
-            fileExplorer.style.width = '400px';
-        });
-
-        console.log('✅ Resizer setup completed successfully');
-    } catch (error) {
-        console.error('❌ Error setting up resizer:', error);
-        // Don't let resizer errors break the app
-    }
-}
 
             async loadDirectory(path) {
                 try {
@@ -752,61 +761,62 @@ setupResizer() {
             }
 
             async handleFileSelection(file, isSelected) {
-    if (isSelected) {
-        this.selectedFiles.add(file.path);
-        if (file.type === 'file') {
-            await this.analyzeFileDependencies(file);
-        } else if (file.type === 'directory') {
-            await this.selectDirectoryContents(file.path);
-        }
-    } else {
-        // Remove the file itself
-        this.selectedFiles.delete(file.path);
+                if (isSelected) {
+                    this.selectedFiles.add(file.path);
+                    if (file.type === 'file') {
+                        await this.analyzeFileDependencies(file);
+                    } else if (file.type === 'directory') {
+                        await this.selectDirectoryContents(file.path);
+                    }
+                } else {
+                    // Remove the file itself
+                    this.selectedFiles.delete(file.path);
 
-        // Remove its dependencies if no other files depend on them
-        if (file.type === 'file') {
-            await this.removeDependencies(file.path);
-        } else if (file.type === 'directory') {
-            await this.deselectDirectoryContents(file.path);
-        }
-    }
-
-    this.updateValidateButton();
-    this.updateVisibleCheckboxes();
-}
-            async removeDependencies(filePath) {
-    const dependencies = this.fileDependencies.get(filePath);
-    if (!dependencies) return;
-
-    // Remove this file as an owner of its dependencies
-    for (const depPath of dependencies) {
-        const owners = this.dependencyOwners.get(depPath);
-        if (owners) {
-            owners.delete(filePath);
-
-            // If no other files depend on this dependency, remove it from selection
-            if (owners.size === 0) {
-                this.selectedFiles.delete(depPath);
-                this.dependencyOwners.delete(depPath);
-
-                // Remove dependency indicator from UI
-                const fileItem = document.querySelector(`[data-path="${depPath}"]`);
-                if (fileItem) {
-                    const indicator = fileItem.querySelector('.dependency-indicator');
-                    if (indicator) {
-                        indicator.remove();
+                    // Remove its dependencies if no other files depend on them
+                    if (file.type === 'file') {
+                        await this.removeDependencies(file.path);
+                    } else if (file.type === 'directory') {
+                        await this.deselectDirectoryContents(file.path);
                     }
                 }
 
-                // If this dependency had its own dependencies, remove them too
-                await this.removeDependencies(depPath);
+                this.updateValidateButton();
+                this.updateVisibleCheckboxes();
             }
-        }
-    }
 
-    // Clear this file's dependency list
-    this.fileDependencies.delete(filePath);
-}
+            async removeDependencies(filePath) {
+                const dependencies = this.fileDependencies.get(filePath);
+                if (!dependencies) return;
+
+                // Remove this file as an owner of its dependencies
+                for (const depPath of dependencies) {
+                    const owners = this.dependencyOwners.get(depPath);
+                    if (owners) {
+                        owners.delete(filePath);
+
+                        // If no other files depend on this dependency, remove it from selection
+                        if (owners.size === 0) {
+                            this.selectedFiles.delete(depPath);
+                            this.dependencyOwners.delete(depPath);
+
+                            // Remove dependency indicator from UI
+                            const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                            if (fileItem) {
+                                const indicator = fileItem.querySelector('.dependency-indicator');
+                                if (indicator) {
+                                    indicator.remove();
+                                }
+                            }
+
+                            // If this dependency had its own dependencies, remove them too
+                            await this.removeDependencies(depPath);
+                        }
+                    }
+                }
+
+                // Clear this file's dependency list
+                this.fileDependencies.delete(filePath);
+            }
 
             async selectDirectoryContents(dirPath) {
                 try {
@@ -863,93 +873,93 @@ setupResizer() {
             }
 
             async analyzeFileDependencies(file) {
-    try {
-        console.log('🔍 Analyzing dependencies for:', file.path);
-        const content = await this.getFileContent(file.path);
-        if (!content || content.isBinary) {
-            console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
-            return;
-        }
+                try {
+                    console.log('🔍 Analyzing dependencies for:', file.path);
+                    const content = await this.getFileContent(file.path);
+                    if (!content || content.isBinary) {
+                        console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
+                        return;
+                    }
 
-        // Get relative paths first
-        const relativePaths = this.extractDependencies(content.content, file.path);
-        console.log('🔗 Found relative paths:', relativePaths);
+                    // Get relative paths first
+                    const relativePaths = this.extractDependencies(content.content, file.path);
+                    console.log('🔗 Found relative paths:', relativePaths);
 
-        // Resolve each path to absolute paths
-        const resolvedPaths = [];
-        for (const relativePath of relativePaths) {
-            console.log('⚡ Resolving dependency:', relativePath);
-            const absolutePath = await this.resolvePath(file.path, relativePath);
-            if (absolutePath) {
-                console.log('✅ Resolved to:', absolutePath);
-                resolvedPaths.push(absolutePath);
-            } else {
-                console.log('❌ Could not resolve:', relativePath);
+                    // Resolve each path to absolute paths
+                    const resolvedPaths = [];
+                    for (const relativePath of relativePaths) {
+                        console.log('⚡ Resolving dependency:', relativePath);
+                        const absolutePath = await this.resolvePath(file.path, relativePath);
+                        if (absolutePath) {
+                            console.log('✅ Resolved to:', absolutePath);
+                            resolvedPaths.push(absolutePath);
+                        } else {
+                            console.log('❌ Could not resolve:', relativePath);
+                        }
+                    }
+
+                    console.log('🎯 Final resolved dependencies:', resolvedPaths);
+
+                    // Store dependencies for this file
+                    this.fileDependencies.set(file.path, new Set(resolvedPaths));
+
+                    // Add resolved dependencies to selection
+                    for (const depPath of resolvedPaths) {
+                        if (!this.selectedFiles.has(depPath)) {
+                            console.log('✅ Adding dependency:', depPath);
+                            this.selectedFiles.add(depPath);
+
+                            // Track which file owns this dependency
+                            if (!this.dependencyOwners.has(depPath)) {
+                                this.dependencyOwners.set(depPath, new Set());
+                            }
+                            this.dependencyOwners.get(depPath).add(file.path);
+
+                            // Update checkbox if visible
+                            const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
+                            if (checkbox) {
+                                console.log('✅ Updated checkbox for:', depPath);
+                                checkbox.checked = true;
+                            }
+
+                            // Add dependency indicator
+                            const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                            if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
+                                const indicator = document.createElement('span');
+                                indicator.className = 'dependency-indicator';
+                                indicator.textContent = 'AUTO';
+                                indicator.title = 'Automatically selected as dependency';
+                                fileItem.appendChild(indicator);
+                                console.log('🏷️ Added AUTO indicator to:', depPath);
+                            }
+                        } else {
+                            // File already selected, just add this as an additional owner
+                            if (!this.dependencyOwners.has(depPath)) {
+                                this.dependencyOwners.set(depPath, new Set());
+                            }
+                            this.dependencyOwners.get(depPath).add(file.path);
+                            console.log('⏭️ Dependency already selected, added as owner:', depPath);
+                        }
+                    }
+
+                    this.updateValidateButton();
+                } catch (error) {
+                    console.error('❌ Error analyzing dependencies:', error);
+                }
             }
-        }
-
-        console.log('🎯 Final resolved dependencies:', resolvedPaths);
-
-        // Store dependencies for this file
-        this.fileDependencies.set(file.path, new Set(resolvedPaths));
-
-        // Add resolved dependencies to selection
-        for (const depPath of resolvedPaths) {
-            if (!this.selectedFiles.has(depPath)) {
-                console.log('✅ Adding dependency:', depPath);
-                this.selectedFiles.add(depPath);
-
-                // Track which file owns this dependency
-                if (!this.dependencyOwners.has(depPath)) {
-                    this.dependencyOwners.set(depPath, new Set());
-                }
-                this.dependencyOwners.get(depPath).add(file.path);
-
-                // Update checkbox if visible
-                const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
-                if (checkbox) {
-                    console.log('✅ Updated checkbox for:', depPath);
-                    checkbox.checked = true;
-                }
-
-                // Add dependency indicator
-                const fileItem = document.querySelector(`[data-path="${depPath}"]`);
-                if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
-                    const indicator = document.createElement('span');
-                    indicator.className = 'dependency-indicator';
-                    indicator.textContent = 'AUTO';
-                    indicator.title = 'Automatically selected as dependency';
-                    fileItem.appendChild(indicator);
-                    console.log('🏷️ Added AUTO indicator to:', depPath);
-                }
-            } else {
-                // File already selected, just add this as an additional owner
-                if (!this.dependencyOwners.has(depPath)) {
-                    this.dependencyOwners.set(depPath, new Set());
-                }
-                this.dependencyOwners.get(depPath).add(file.path);
-                console.log('⏭️ Dependency already selected, added as owner:', depPath);
-            }
-        }
-
-        this.updateValidateButton();
-    } catch (error) {
-        console.error('❌ Error analyzing dependencies:', error);
-    }
-}
 
             handleManualFileSelection(file, isSelected) {
-    if (isSelected) {
-        // If user manually selects a file that was auto-selected, remove dependency indicators
-        const fileItem = document.querySelector(`[data-path="${file.path}"]`);
-        if (fileItem) {
-            const indicator = fileItem.querySelector('.dependency-indicator');
-            if (indicator) {
-                indicator.remove();
+                if (isSelected) {
+                    // If user manually selects a file that was auto-selected, remove dependency indicators
+                    const fileItem = document.querySelector(`[data-path="${file.path}"]`);
+                    if (fileItem) {
+                        const indicator = fileItem.querySelector('.dependency-indicator');
+                        if (indicator) {
+                            indicator.remove();
+                        }
+                    }
+                }
             }
-        }
-    }
-}
 
             extractDependencies(content, currentFilePath) {
                 console.log('🔍 Extracting dependencies from:', currentFilePath);
@@ -1107,73 +1117,73 @@ setupResizer() {
             }
 
             async loadFileContent(file) {
-    try {
-        const content = await this.getFileContent(file.path);
-        const header = document.getElementById('contentHeader');
-        const fileInfo = document.getElementById('fileInfo');
-        const display = document.getElementById('contentDisplay');
+                try {
+                    const content = await this.getFileContent(file.path);
+                    const header = document.getElementById('contentHeader');
+                    const fileInfo = document.getElementById('fileInfo');
+                    const display = document.getElementById('contentDisplay');
 
-        header.firstChild.textContent = file.name;
+                    header.firstChild.textContent = file.name;
 
-        if (!content) {
-            display.innerHTML = `
-                <div class="empty-state">
-                    <p>❌ Could not load file</p>
-                    <p style="font-size: 12px; margin-top: 8px;">File may not exist or be inaccessible</p>
-                </div>
-            `;
-            return;
-        }
+                    if (!content) {
+                        display.innerHTML = `
+                            <div class="empty-state">
+                                <p>❌ Could not load file</p>
+                                <p style="font-size: 12px; margin-top: 8px;">File may not exist or be inaccessible</p>
+                            </div>
+                        `;
+                        return;
+                    }
 
-        if (content.isBinary) {
-            fileInfo.textContent = `Binary file (${this.formatFileSize(file.size)})`;
-            display.innerHTML = `
-                <div class="empty-state">
-                    <p>📁 Binary file</p>
-                    <p style="font-size: 12px; margin-top: 8px;">Cannot display binary content</p>
-                </div>
-            `;
-        } else {
-            fileInfo.textContent = `${content.lines} lines • ${this.formatFileSize(file.size)}`;
+                    if (content.isBinary) {
+                        fileInfo.textContent = `Binary file (${this.formatFileSize(file.size)})`;
+                        display.innerHTML = `
+                            <div class="empty-state">
+                                <p>📁 Binary file</p>
+                                <p style="font-size: 12px; margin-top: 8px;">Cannot display binary content</p>
+                            </div>
+                        `;
+                    } else {
+                        fileInfo.textContent = `${content.lines} lines • ${this.formatFileSize(file.size)}`;
 
-            // Generate line numbers (start from 1)
-            const lineNumbers = [];
-            for (let i = 1; i <= content.lines; i++) {
-                lineNumbers.push(i);
+                        // Generate line numbers (start from 1)
+                        const lineNumbers = [];
+                        for (let i = 1; i <= content.lines; i++) {
+                            lineNumbers.push(i);
+                        }
+                        const lineNumbersText = lineNumbers.join('\n');
+
+                        // Clear the display first
+                        display.innerHTML = '';
+
+                        // Create line numbers container
+                        const lineNumbersDiv = document.createElement('div');
+                        lineNumbersDiv.className = 'line-numbers';
+                        lineNumbersDiv.textContent = lineNumbersText;
+
+                        // Create content container
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'content-with-numbers';
+                        contentDiv.textContent = content.content;
+
+                        // Add both to display
+                        display.appendChild(lineNumbersDiv);
+                        display.appendChild(contentDiv);
+
+                        // Scroll to top
+                        display.scrollTop = 0;
+                        display.scrollLeft = 0;
+                    }
+                } catch (error) {
+                    console.error('Error loading file content:', error);
+                    const display = document.getElementById('contentDisplay');
+                    display.innerHTML = `
+                        <div class="error">
+                            ❌ Error loading file: ${error.message}
+                        </div>
+                    `;
+                }
             }
-            const lineNumbersText = lineNumbers.join('\n');
-
-            // Clear the display first
-            display.innerHTML = '';
-
-            // Create line numbers container
-            const lineNumbersDiv = document.createElement('div');
-            lineNumbersDiv.className = 'line-numbers';
-            lineNumbersDiv.textContent = lineNumbersText;
-
-            // Create content container
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'content-with-numbers';
-            contentDiv.textContent = content.content;
-
-            // Add both to display
-            display.appendChild(lineNumbersDiv);
-            display.appendChild(contentDiv);
-
-            // Scroll to top
-            display.scrollTop = 0;
-            display.scrollLeft = 0;
-        }
-    } catch (error) {
-        console.error('Error loading file content:', error);
-        const display = document.getElementById('contentDisplay');
-        display.innerHTML = `
-            <div class="error">
-                ❌ Error loading file: ${error.message}
-            </div>
-        `;
-    }
-}
 
             escapeHtml(text) {
                 const map = {
@@ -1377,108 +1387,116 @@ setupResizer() {
             }
 
             async generateFile() {
-    try {
-        const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
-            const item = document.querySelector(`[data-path="${path}"]`);
-            return !item || item.dataset.type === 'file';
-        });
+                try {
+                    const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+                        const item = document.querySelector(`[data-path="${path}"]`);
+                        return !item || item.dataset.type === 'file';
+                    });
 
-        let output = 'FILE COLLECTION\n';
-        output += '='.repeat(80) + '\n\n';
-        output += `Generated: ${new Date().toISOString()}\n`;
-        output += `Total files: ${selectedFilesList.length}\n`;
-        output += `Root directory: ${this.currentPath}\n`;
-        if (this.dockerFiles.length > 0) {
-            output += `Docker files included: ${this.dockerFiles.length}\n`;
-        }
-        output += `Output saved to: output_files_selected/ directory\n`; // Add this line
-        output += '\n';
+                    let output = '';
 
-        for (const filePath of selectedFilesList.sort()) {
-            try {
-                if (typeof filePath !== 'string') {
-                    console.error('Invalid filePath type:', typeof filePath, filePath);
-                    continue;
+                    // Add custom prompt at the beginning if provided
+                    if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+                        output += this.settings.customPrompt.trim() + '\n\n';
+                        output += '='.repeat(80) + '\n\n';
+                    }
+
+                    output += 'FILE COLLECTION\n';
+                    output += '='.repeat(80) + '\n\n';
+                    output += `Generated: ${new Date().toISOString()}\n`;
+                    output += `Total files: ${selectedFilesList.length}\n`;
+                    output += `Root directory: ${this.currentPath}\n`;
+                    if (this.dockerFiles.length > 0) {
+                        output += `Docker files included: ${this.dockerFiles.length}\n`;
+                    }
+                    output += `Output saved to: output_files_selected/ directory\n`;
+                    output += '\n';
+
+                    for (const filePath of selectedFilesList.sort()) {
+                        try {
+                            if (typeof filePath !== 'string') {
+                                console.error('Invalid filePath type:', typeof filePath, filePath);
+                                continue;
+                            }
+
+                            const content = await this.getFileContent(filePath);
+                            const fileName = filePath.split('/').pop();
+                            const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                            const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+
+                            output += '='.repeat(80) + '\n';
+                            output += `filename: ${fileName}\n`;
+                            output += `directory: ${directory}\n`;
+                            output += `relative_path: ${relativePath}\n`;
+                            output += `full_path: ${filePath}\n`;
+
+                            if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
+                                output += `type: docker\n`;
+                            }
+
+                            if (content && content.isBinary) {
+                                output += `type: binary\n`;
+                                output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
+                            } else if (content) {
+                                output += `type: text\n`;
+                                output += `lines: ${content.lines}\n`;
+                                output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
+                            }
+
+                            output += '='.repeat(80) + '\n\n';
+
+                            if (content && !content.isBinary) {
+                                output += content.content;
+                            } else if (content && content.isBinary) {
+                                output += '// Binary file - content not included\n';
+                            } else {
+                                output += '// Could not read file content\n';
+                            }
+
+                            output += '\n\n';
+                        } catch (error) {
+                            console.error(`Error processing file ${filePath}:`, error);
+                            const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
+                            const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
+
+                            output += '='.repeat(80) + '\n';
+                            output += `filename: ${fileName}\n`;
+                            output += `directory: ${directory}\n`;
+                            output += `full_path: ${filePath}\n`;
+                            output += `error: ${error.message}\n`;
+                            output += '='.repeat(80) + '\n\n';
+                            output += '// Error reading file\n\n';
+                        }
+                    }
+
+                    // Save file using the server's API
+                    const response = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                        },
+                        body: output
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Show enhanced success message with directory info
+                        alert(`✅ File saved successfully!\n\n` +
+                              `📁 Directory: output_files_selected/\n` +
+                              `📄 Filename: ${result.filename}\n` +
+                              `📍 Full path: ${result.relativePath}\n\n` +
+                              `The file has been saved to the output_files_selected directory in your project.`);
+                    } else {
+                        alert(`❌ Error saving file: ${result.error}`);
+                    }
+
+                    this.hideConfirmModal();
+                } catch (error) {
+                    console.error('Error generating file:', error);
+                    alert(`❌ Error generating file: ${error.message}`);
                 }
-
-                const content = await this.getFileContent(filePath);
-                const fileName = filePath.split('/').pop();
-                const directory = filePath.substring(0, filePath.lastIndexOf('/'));
-                const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
-
-                output += '='.repeat(80) + '\n';
-                output += `filename: ${fileName}\n`;
-                output += `directory: ${directory}\n`;
-                output += `relative_path: ${relativePath}\n`;
-                output += `full_path: ${filePath}\n`;
-
-                if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
-                    output += `type: docker\n`;
-                }
-
-                if (content && content.isBinary) {
-                    output += `type: binary\n`;
-                    output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
-                } else if (content) {
-                    output += `type: text\n`;
-                    output += `lines: ${content.lines}\n`;
-                    output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
-                }
-
-                output += '='.repeat(80) + '\n\n';
-
-                if (content && !content.isBinary) {
-                    output += content.content;
-                } else if (content && content.isBinary) {
-                    output += '// Binary file - content not included\n';
-                } else {
-                    output += '// Could not read file content\n';
-                }
-
-                output += '\n\n';
-            } catch (error) {
-                console.error(`Error processing file ${filePath}:`, error);
-                const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
-                const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
-
-                output += '='.repeat(80) + '\n';
-                output += `filename: ${fileName}\n`;
-                output += `directory: ${directory}\n`;
-                output += `full_path: ${filePath}\n`;
-                output += `error: ${error.message}\n`;
-                output += '='.repeat(80) + '\n\n';
-                output += '// Error reading file\n\n';
             }
-        }
-
-        // Save file using the server's API
-        const response = await fetch('/api/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain',
-            },
-            body: output
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            // Show enhanced success message with directory info
-            alert(`✅ File saved successfully!\n\n` +
-                  `📁 Directory: output_files_selected/\n` +
-                  `📄 Filename: ${result.filename}\n` +
-                  `📍 Full path: ${result.relativePath}\n\n` +
-                  `The file has been saved to the output_files_selected directory in your project.`);
-        } else {
-            alert(`❌ Error saving file: ${result.error}`);
-        }
-
-        this.hideConfirmModal();
-    } catch (error) {
-        console.error('Error generating file:', error);
-        alert(`❌ Error generating file: ${error.message}`);
-    }
-}
         }
 
         // Initialize the file explorer when DOM is loaded
