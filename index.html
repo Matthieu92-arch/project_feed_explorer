@@ -160,6 +160,8 @@
                     includeDockerFiles: false
                 };
                 this.dockerFiles = [];
+                this.fileDependencies = new Map();
+                this.dependencyOwners = new Map();
                 this.init();
             }
 
@@ -410,6 +412,128 @@
                 });
             }
 
+            async init() {
+    this.setupEventListeners();
+
+    // Load settings first
+    await this.loadSettings();
+
+    // Start from settings default path or server's current working directory
+    if (this.settings.defaultPath && await this.directoryExists(this.settings.defaultPath)) {
+        this.currentPath = this.settings.defaultPath;
+    } else {
+        this.currentPath = await this.getCurrentWorkingDirectory();
+    }
+
+    document.getElementById('currentPath').textContent = this.currentPath;
+    await this.loadDirectory(this.currentPath);
+
+    // Scan for Docker files if enabled
+    if (this.settings.includeDockerFiles) {
+        await this.scanForDockerFiles();
+    }
+
+    // Setup resizer after everything else is loaded
+    this.setupResizer();
+
+    // Make this instance globally accessible for the browse button
+    window.fileExplorer = this;
+}
+
+// Replace your setupResizer method with this safer version:
+setupResizer() {
+    try {
+        const resizer = document.getElementById('resizer');
+        const fileContent = document.querySelector('.file-content');
+        const fileExplorer = document.querySelector('.file-explorer');
+        const resizeIndicator = document.getElementById('resizeIndicator');
+
+        // Check if all required elements exist
+        if (!resizer || !fileContent || !fileExplorer) {
+            console.warn('Resizer elements not found, skipping resizer setup');
+            return;
+        }
+
+        let isResizing = false;
+        let startX = 0;
+        let startFileContentWidth = 0;
+        let startFileExplorerWidth = 0;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startFileContentWidth = fileContent.offsetWidth;
+            startFileExplorerWidth = fileExplorer.offsetWidth;
+
+            resizer.classList.add('dragging');
+            if (resizeIndicator) {
+                resizeIndicator.style.opacity = '1';
+            }
+
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - startX;
+            const mainContainer = document.querySelector('.main-container');
+            if (!mainContainer) return;
+
+            const containerWidth = mainContainer.offsetWidth;
+
+            // Calculate new widths
+            let newFileContentWidth = startFileContentWidth + deltaX;
+            let newFileExplorerWidth = startFileExplorerWidth - deltaX;
+
+            // Set minimum and maximum widths
+            const minFileContentWidth = 300;
+            const maxFileContentWidth = containerWidth - 250; // Leave at least 250px for explorer
+            const minFileExplorerWidth = 250;
+            const maxFileExplorerWidth = 800;
+
+            // Constrain the widths
+            newFileContentWidth = Math.max(minFileContentWidth, Math.min(maxFileContentWidth, newFileContentWidth));
+            newFileExplorerWidth = Math.max(minFileExplorerWidth, Math.min(maxFileExplorerWidth, containerWidth - newFileContentWidth));
+
+            // Apply the new widths
+            fileContent.style.flex = 'none';
+            fileContent.style.width = newFileContentWidth + 'px';
+            fileExplorer.style.width = newFileExplorerWidth + 'px';
+
+            e.preventDefault();
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!isResizing) return;
+
+            isResizing = false;
+            resizer.classList.remove('dragging');
+            if (resizeIndicator) {
+                resizeIndicator.style.opacity = '0';
+            }
+
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+
+        // Handle double-click to reset to default sizes
+        resizer.addEventListener('dblclick', () => {
+            fileContent.style.flex = '1';
+            fileContent.style.width = '';
+            fileExplorer.style.width = '400px';
+        });
+
+        console.log('✅ Resizer setup completed successfully');
+    } catch (error) {
+        console.error('❌ Error setting up resizer:', error);
+        // Don't let resizer errors break the app
+    }
+}
+
             async loadDirectory(path) {
                 try {
                     const tree = document.getElementById('fileTree');
@@ -458,7 +582,10 @@
                 checkbox.type = 'checkbox';
                 checkbox.className = 'checkbox';
                 checkbox.checked = this.selectedFiles.has(file.path);
-                checkbox.addEventListener('change', (e) => this.handleFileSelection(file, e.target.checked));
+                checkbox.addEventListener('change', (e) => {
+                 this.handleManualFileSelection(file, e.target.checked);
+                 this.handleFileSelection(file, e.target.checked);
+                });
 
                 const icon = document.createElement('div');
                 icon.className = 'file-icon';
@@ -602,22 +729,61 @@
             }
 
             async handleFileSelection(file, isSelected) {
-                if (isSelected) {
-                    this.selectedFiles.add(file.path);
-                    if (file.type === 'file') {
-                        await this.analyzeFileDependencies(file);
-                    } else if (file.type === 'directory') {
-                        await this.selectDirectoryContents(file.path);
-                    }
-                } else {
-                    this.selectedFiles.delete(file.path);
-                    if (file.type === 'directory') {
-                        await this.deselectDirectoryContents(file.path);
+    if (isSelected) {
+        this.selectedFiles.add(file.path);
+        if (file.type === 'file') {
+            await this.analyzeFileDependencies(file);
+        } else if (file.type === 'directory') {
+            await this.selectDirectoryContents(file.path);
+        }
+    } else {
+        // Remove the file itself
+        this.selectedFiles.delete(file.path);
+
+        // Remove its dependencies if no other files depend on them
+        if (file.type === 'file') {
+            await this.removeDependencies(file.path);
+        } else if (file.type === 'directory') {
+            await this.deselectDirectoryContents(file.path);
+        }
+    }
+
+    this.updateValidateButton();
+    this.updateVisibleCheckboxes();
+}
+            async removeDependencies(filePath) {
+    const dependencies = this.fileDependencies.get(filePath);
+    if (!dependencies) return;
+
+    // Remove this file as an owner of its dependencies
+    for (const depPath of dependencies) {
+        const owners = this.dependencyOwners.get(depPath);
+        if (owners) {
+            owners.delete(filePath);
+
+            // If no other files depend on this dependency, remove it from selection
+            if (owners.size === 0) {
+                this.selectedFiles.delete(depPath);
+                this.dependencyOwners.delete(depPath);
+
+                // Remove dependency indicator from UI
+                const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                if (fileItem) {
+                    const indicator = fileItem.querySelector('.dependency-indicator');
+                    if (indicator) {
+                        indicator.remove();
                     }
                 }
 
-                this.updateValidateButton();
+                // If this dependency had its own dependencies, remove them too
+                await this.removeDependencies(depPath);
             }
+        }
+    }
+
+    // Clear this file's dependency list
+    this.fileDependencies.delete(filePath);
+}
 
             async selectDirectoryContents(dirPath) {
                 try {
@@ -674,70 +840,93 @@
             }
 
             async analyzeFileDependencies(file) {
-                try {
-                    console.log('🔍 Analyzing dependencies for:', file.path);
-                    const content = await this.getFileContent(file.path);
-                    if (!content || content.isBinary) {
-                        console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
-                        return;
-                    }
+    try {
+        console.log('🔍 Analyzing dependencies for:', file.path);
+        const content = await this.getFileContent(file.path);
+        if (!content || content.isBinary) {
+            console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
+            return;
+        }
 
-                    console.log('📄 File content preview:', content.content.substring(0, 500));
+        // Get relative paths first
+        const relativePaths = this.extractDependencies(content.content, file.path);
+        console.log('🔗 Found relative paths:', relativePaths);
 
-                    // Get relative paths first
-                    const relativePaths = this.extractDependencies(content.content, file.path);
-                    console.log('🔗 Found relative paths:', relativePaths);
-
-                    // Resolve each path to absolute paths
-                    const resolvedPaths = [];
-                    for (const relativePath of relativePaths) {
-                        console.log('⚡ Resolving dependency:', relativePath);
-                        const absolutePath = await this.resolvePath(file.path, relativePath);
-                        if (absolutePath) {
-                            console.log('✅ Resolved to:', absolutePath);
-                            resolvedPaths.push(absolutePath);
-                        } else {
-                            console.log('❌ Could not resolve:', relativePath);
-                        }
-                    }
-
-                    console.log('🎯 Final resolved dependencies:', resolvedPaths);
-
-                    // Add resolved dependencies to selection
-                    for (const depPath of resolvedPaths) {
-                        if (!this.selectedFiles.has(depPath)) {
-                            console.log('✅ Adding dependency:', depPath);
-                            this.selectedFiles.add(depPath);
-
-                            // Update checkbox if visible
-                            const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
-                            if (checkbox) {
-                                console.log('✅ Updated checkbox for:', depPath);
-                                checkbox.checked = true;
-                            }
-
-                            // Add dependency indicator
-                            const fileItem = document.querySelector(`[data-path="${depPath}"]`);
-                            if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
-                                const indicator = document.createElement('span');
-                                indicator.className = 'dependency-indicator';
-                                indicator.textContent = 'AUTO';
-                                indicator.title = 'Automatically selected as dependency';
-                                fileItem.appendChild(indicator);
-                                console.log('🏷️ Added AUTO indicator to:', depPath);
-                            } else if (!fileItem) {
-                                console.log('⚠️ File item not found in DOM for:', depPath);
-                            }
-                        } else {
-                            console.log('⏭️ Dependency already selected:', depPath);
-                        }
-                    }
-
-                    this.updateValidateButton();
-                } catch (error) {
-                    console.error('❌ Error analyzing dependencies:', error);
-                }
+        // Resolve each path to absolute paths
+        const resolvedPaths = [];
+        for (const relativePath of relativePaths) {
+            console.log('⚡ Resolving dependency:', relativePath);
+            const absolutePath = await this.resolvePath(file.path, relativePath);
+            if (absolutePath) {
+                console.log('✅ Resolved to:', absolutePath);
+                resolvedPaths.push(absolutePath);
+            } else {
+                console.log('❌ Could not resolve:', relativePath);
             }
+        }
+
+        console.log('🎯 Final resolved dependencies:', resolvedPaths);
+
+        // Store dependencies for this file
+        this.fileDependencies.set(file.path, new Set(resolvedPaths));
+
+        // Add resolved dependencies to selection
+        for (const depPath of resolvedPaths) {
+            if (!this.selectedFiles.has(depPath)) {
+                console.log('✅ Adding dependency:', depPath);
+                this.selectedFiles.add(depPath);
+
+                // Track which file owns this dependency
+                if (!this.dependencyOwners.has(depPath)) {
+                    this.dependencyOwners.set(depPath, new Set());
+                }
+                this.dependencyOwners.get(depPath).add(file.path);
+
+                // Update checkbox if visible
+                const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
+                if (checkbox) {
+                    console.log('✅ Updated checkbox for:', depPath);
+                    checkbox.checked = true;
+                }
+
+                // Add dependency indicator
+                const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'dependency-indicator';
+                    indicator.textContent = 'AUTO';
+                    indicator.title = 'Automatically selected as dependency';
+                    fileItem.appendChild(indicator);
+                    console.log('🏷️ Added AUTO indicator to:', depPath);
+                }
+            } else {
+                // File already selected, just add this as an additional owner
+                if (!this.dependencyOwners.has(depPath)) {
+                    this.dependencyOwners.set(depPath, new Set());
+                }
+                this.dependencyOwners.get(depPath).add(file.path);
+                console.log('⏭️ Dependency already selected, added as owner:', depPath);
+            }
+        }
+
+        this.updateValidateButton();
+    } catch (error) {
+        console.error('❌ Error analyzing dependencies:', error);
+    }
+}
+
+            handleManualFileSelection(file, isSelected) {
+    if (isSelected) {
+        // If user manually selects a file that was auto-selected, remove dependency indicators
+        const fileItem = document.querySelector(`[data-path="${file.path}"]`);
+        if (fileItem) {
+            const indicator = fileItem.querySelector('.dependency-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+    }
+}
 
             extractDependencies(content, currentFilePath) {
                 console.log('🔍 Extracting dependencies from:', currentFilePath);
