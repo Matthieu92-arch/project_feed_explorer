@@ -101,24 +101,69 @@ class FileExplorer {
     // File Chunking Methods
     splitIntoChunks(content, chunkSize = 350000) {
         const chunks = [];
+
+        // Check if this content has pasting instructions
+        const hasPastingInstructions = content.startsWith(`I'm going to paste multiple parts`);
+
+        // If content fits in one chunk and has no pasting instructions, return as single chunk
+        if (!hasPastingInstructions && content.length <= chunkSize) {
+            const chunkLabel = 'a';
+            chunks.push({
+                index: 0,
+                label: chunkLabel,
+                filename: `file_${chunkLabel}`,
+                content: content,
+                size: content.length,
+                startPos: 0,
+                endPos: content.length
+            });
+            return chunks;
+        }
+
+        // For content with pasting instructions OR content that needs chunking
         let currentIndex = 0;
         let chunkNumber = 1;
 
         while (currentIndex < content.length) {
-            const chunk = content.substring(currentIndex, currentIndex + chunkSize);
+            let finalChunk;
+            let contentLength;
+
+            if (hasPastingInstructions) {
+                // Add "Part X:" prefix for pasting instructions
+                const partPrefix = `Part ${chunkNumber}:\n\n`;
+                const endPrefix = `--- wait for Part ${chunkNumber + 1}, only respond with "Ready for next one boss."---`;
+                const availableContentSpace = chunkSize - partPrefix.length;
+
+                // Get the content chunk (but don't exceed remaining content)
+                const remainingContent = content.length - currentIndex;
+                contentLength = Math.min(availableContentSpace, remainingContent);
+                const contentChunk = content.substring(currentIndex, currentIndex + contentLength);
+
+                // Create the final chunk with prefix
+                finalChunk = partPrefix + contentChunk + endPrefix;
+            } else {
+                // No pasting instructions, just chunk normally
+                const remainingContent = content.length - currentIndex;
+                contentLength = Math.min(chunkSize, remainingContent);
+                finalChunk = content.substring(currentIndex, currentIndex + contentLength);
+            }
+
             const chunkLabel = String.fromCharCode(96 + chunkNumber); // 'a', 'b', 'c', etc.
+            const filename = hasPastingInstructions ? `part_${chunkNumber}` : `file_${chunkLabel}`;
 
             chunks.push({
                 index: chunkNumber - 1,
                 label: chunkLabel,
-                filename: `file_${chunkLabel}`,
-                content: chunk,
-                size: chunk.length,
+                filename: filename,
+                content: finalChunk,
+                size: finalChunk.length,
                 startPos: currentIndex,
-                endPos: Math.min(currentIndex + chunkSize, content.length)
+                endPos: currentIndex + contentLength,
+                partNumber: chunkNumber
             });
 
-            currentIndex += chunkSize;
+            // Move to next chunk
+            currentIndex += contentLength;
             chunkNumber++;
         }
 
@@ -128,9 +173,14 @@ class FileExplorer {
     createChunkNavigation() {
         const navigation = document.createElement('div');
         navigation.className = 'chunk-navigation';
+
+        const instructionText = this.fileChunks.length > 1 && this.fileChunks[0].content.startsWith(`I'm going to paste multiple parts`)
+            ? 'AI-ready parts for sequential pasting'
+            : 'File split into chunks';
+
         navigation.innerHTML = `
             <div class="chunk-nav-header">
-                <span class="chunk-info">File split into ${this.fileChunks.length} chunks (${this.chunkSize.toLocaleString()} chars each)</span>
+                <span class="chunk-info">${instructionText} - ${this.fileChunks.length} parts (${this.chunkSize.toLocaleString()} chars each)</span>
             </div>
             <div class="chunk-buttons" id="chunkButtons">
                 ${this.fileChunks.map((chunk, index) => `
@@ -647,159 +697,242 @@ class FileExplorer {
     }
 
     async analyzeFileDependencies(file) {
-        try {
-            console.log('🔍 Analyzing dependencies for:', file.path);
-            const content = await this.getFileContent(file.path);
-            if (!content || content.isBinary) {
-                console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
-                return;
-            }
-
-            const relativePaths = this.extractDependencies(content.content, file.path);
-            console.log('🔗 Found relative paths:', relativePaths);
-
-            const resolvedPaths = [];
-            for (const relativePath of relativePaths) {
-                console.log('⚡ Resolving dependency:', relativePath);
-                const absolutePath = await this.resolvePath(file.path, relativePath);
-                if (absolutePath) {
-                    console.log('✅ Resolved to:', absolutePath);
-                    resolvedPaths.push(absolutePath);
-                } else {
-                    console.log('❌ Could not resolve:', relativePath);
-                }
-            }
-
-            this.fileDependencies.set(file.path, new Set(resolvedPaths));
-
-            for (const depPath of resolvedPaths) {
-                if (!this.selectedFiles.has(depPath)) {
-                    this.selectedFiles.add(depPath);
-
-                    if (!this.dependencyOwners.has(depPath)) {
-                        this.dependencyOwners.set(depPath, new Set());
-                    }
-                    this.dependencyOwners.get(depPath).add(file.path);
-
-                    const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                    }
-
-                    const fileItem = document.querySelector(`[data-path="${depPath}"]`);
-                    if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
-                        const indicator = document.createElement('span');
-                        indicator.className = 'dependency-indicator';
-                        indicator.textContent = 'AUTO';
-                        indicator.title = 'Automatically selected as dependency';
-                        fileItem.appendChild(indicator);
-                    }
-                } else {
-                    if (!this.dependencyOwners.has(depPath)) {
-                        this.dependencyOwners.set(depPath, new Set());
-                    }
-                    this.dependencyOwners.get(depPath).add(file.path);
-                }
-            }
-
-            this.updateValidateButton();
-        } catch (error) {
-            console.error('❌ Error analyzing dependencies:', error);
+    try {
+        console.log('🔍 Analyzing dependencies for:', file.path);
+        const content = await this.getFileContent(file.path);
+        if (!content || content.isBinary) {
+            console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
+            return;
         }
+
+        const dependencies = this.extractDependencies(content.content, file.path);
+        console.log('🔗 Found dependencies:', dependencies);
+
+        const allResolvedPaths = [];
+        for (const dependency of dependencies) {
+            console.log('⚡ Resolving dependency:', dependency);
+            const resolvedPaths = await this.resolvePath(file.path, dependency);
+            if (resolvedPaths && resolvedPaths.length > 0) {
+                console.log('✅ Resolved to:', resolvedPaths);
+                allResolvedPaths.push(...resolvedPaths);
+            } else {
+                console.log('❌ Could not resolve:', dependency.relativePath);
+            }
+        }
+
+        // Remove duplicates
+        const uniqueResolvedPaths = [...new Set(allResolvedPaths)];
+        this.fileDependencies.set(file.path, new Set(uniqueResolvedPaths));
+
+        for (const depPath of uniqueResolvedPaths) {
+            if (!this.selectedFiles.has(depPath)) {
+                this.selectedFiles.add(depPath);
+
+                if (!this.dependencyOwners.has(depPath)) {
+                    this.dependencyOwners.set(depPath, new Set());
+                }
+                this.dependencyOwners.get(depPath).add(file.path);
+
+                const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+
+                const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'dependency-indicator';
+                    indicator.textContent = 'AUTO';
+                    indicator.title = 'Automatically selected as dependency';
+                    fileItem.appendChild(indicator);
+                }
+            } else {
+                if (!this.dependencyOwners.has(depPath)) {
+                    this.dependencyOwners.set(depPath, new Set());
+                }
+                this.dependencyOwners.get(depPath).add(file.path);
+            }
+        }
+
+        this.updateValidateButton();
+    } catch (error) {
+        console.error('❌ Error analyzing dependencies:', error);
     }
+}
 
     extractDependencies(content, currentFilePath) {
-        const dependencies = [];
-        const importRegexes = [
-            /import\s+.*\s+from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
-            /import\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
-            /require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
-            /import\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
-            /import\s+.*\s+=\s+require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g
-        ];
+    const dependencies = [];
 
-        importRegexes.forEach((regex) => {
-            let match;
-            while ((match = regex.exec(content)) !== null) {
-                const relativePath = match[1];
-                dependencies.push(relativePath);
-            }
-            regex.lastIndex = 0;
-        });
+    // Enhanced import regex patterns that capture both the import specifiers and the path
+    const importRegexes = [
+        // Named imports: import { ComponentName, AnotherComponent } from 'path'
+        /import\s*\{\s*([^}]+)\s*\}\s*from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
+        // Default imports: import ComponentName from 'path'
+        /import\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
+        // Namespace imports: import * as Name from 'path'
+        /import\s+\*\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
+        // Side effect imports: import 'path'
+        /import\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
+        // Dynamic imports: import('path')
+        /import\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
+        // Require statements: require('path')
+        /require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
+        // Assignment with require: const name = require('path')
+        /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g
+    ];
 
-        return dependencies;
-    }
+    importRegexes.forEach((regex, regexIndex) => {
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            let relativePath, importedNames = [];
 
-    async resolvePath(currentPath, relativePath) {
-        try {
-            const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
-            let resolvedPath;
-
-            if (relativePath.startsWith('./')) {
-                resolvedPath = currentDir + '/' + relativePath.substring(2);
-            } else if (relativePath.startsWith('../')) {
-                let pathParts = currentDir.split('/');
-                let relativeParts = relativePath.split('/');
-
-                for (let part of relativeParts) {
-                    if (part === '..') {
-                        pathParts.pop();
-                    } else if (part !== '.') {
-                        pathParts.push(part);
-                    }
-                }
-                resolvedPath = pathParts.join('/');
-            } else {
-                resolvedPath = currentDir + '/' + relativePath;
-            }
-
-            const checkFileExists = async (testPath) => {
-                try {
-                    const pathForAPI = testPath.startsWith('/') ? testPath.substring(1) : testPath;
-                    const encodedPath = encodeURIComponent(pathForAPI);
-                    const existsResponse = await fetch(`/api/exists/${encodedPath}`);
-                    const exists = await existsResponse.json();
-
-                    if (exists.exists && exists.isFile) {
-                        return testPath;
-                    }
-                    return null;
-                } catch (error) {
-                    return null;
-                }
-            };
-
-            let foundPath = await checkFileExists(resolvedPath);
-            if (foundPath) return foundPath;
-
-            const hasNoExtension = (str) => {
-                const lastSlash = str.lastIndexOf('/');
-                const lastDot = str.lastIndexOf('.');
-                return lastDot === -1 || lastDot < lastSlash;
-            };
-
-            if (hasNoExtension(relativePath)) {
-                const extensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
-
-                for (const ext of extensions) {
-                    const pathWithExt = resolvedPath + ext;
-                    foundPath = await checkFileExists(pathWithExt);
-                    if (foundPath) return foundPath;
-                }
-
-                for (const ext of extensions) {
-                    const indexPath = resolvedPath + '/index' + ext;
-                    foundPath = await checkFileExists(indexPath);
-                    if (foundPath) return foundPath;
-                }
+            // Different regex patterns have different capture groups
+            if (regexIndex === 0) {
+                // Named imports: extract both names and path
+                const namesString = match[1];
+                relativePath = match[2];
+                // Parse the named imports (handle aliases with 'as')
+                importedNames = namesString.split(',').map(name => {
+                    const cleanName = name.trim();
+                    // Handle 'ComponentName as Alias' syntax
+                    const asMatch = cleanName.match(/^([^as]+)\s+as\s+(.+)$/);
+                    return asMatch ? asMatch[1].trim() : cleanName;
+                });
+            } else if (regexIndex === 1) {
+                // Default imports
+                importedNames = [match[1]];
+                relativePath = match[2];
+            } else if (regexIndex === 2) {
+                // Namespace imports
+                importedNames = [match[1]];
+                relativePath = match[2];
+            } else if (regexIndex === 3 || regexIndex === 4 || regexIndex === 5) {
+                // Side effect imports, dynamic imports, basic require
+                relativePath = match[1];
+                importedNames = [];
+            } else if (regexIndex === 6) {
+                // Assignment with require
+                importedNames = [match[1]];
+                relativePath = match[2];
             }
 
-            return null;
-        } catch (error) {
-            console.error('❌ Error resolving path:', error);
-            return null;
+            dependencies.push({
+                relativePath,
+                importedNames,
+                originalStatement: match[0]
+            });
         }
+        regex.lastIndex = 0;
+    });
+
+    return dependencies;
+}
+
+    async resolvePath(currentPath, dependencyInfo) {
+    try {
+        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        const { relativePath, importedNames } = dependencyInfo;
+
+        let resolvedPath;
+
+        // Basic path resolution
+        if (relativePath.startsWith('./')) {
+            resolvedPath = currentDir + '/' + relativePath.substring(2);
+        } else if (relativePath.startsWith('../')) {
+            let pathParts = currentDir.split('/');
+            let relativeParts = relativePath.split('/');
+
+            for (let part of relativeParts) {
+                if (part === '..') {
+                    pathParts.pop();
+                } else if (part !== '.') {
+                    pathParts.push(part);
+                }
+            }
+            resolvedPath = pathParts.join('/');
+        } else {
+            resolvedPath = currentDir + '/' + relativePath;
+        }
+
+        // Helper function to check if a file exists
+        const checkFileExists = async (testPath) => {
+            try {
+                const pathForAPI = testPath.startsWith('/') ? testPath.substring(1) : testPath;
+                const encodedPath = encodeURIComponent(pathForAPI);
+                const existsResponse = await fetch(`/api/exists/${encodedPath}`);
+                const exists = await existsResponse.json();
+
+                if (exists.exists && exists.isFile) {
+                    return testPath;
+                }
+                return null;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const resolvedPaths = new Set();
+
+        // 1. Try the exact path as specified
+        let foundPath = await checkFileExists(resolvedPath);
+        if (foundPath) {
+            resolvedPaths.add(foundPath);
+        }
+
+        // 2. Try with common extensions if no extension is present
+        const hasNoExtension = (str) => {
+            const lastSlash = str.lastIndexOf('/');
+            const lastDot = str.lastIndexOf('.');
+            return lastDot === -1 || lastDot < lastSlash;
+        };
+
+        if (hasNoExtension(relativePath)) {
+            const extensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
+
+            // Try direct file with extensions
+            for (const ext of extensions) {
+                const pathWithExt = resolvedPath + ext;
+                foundPath = await checkFileExists(pathWithExt);
+                if (foundPath) {
+                    resolvedPaths.add(foundPath);
+                }
+            }
+
+            // Try index files in the directory
+            for (const ext of extensions) {
+                const indexPath = resolvedPath + '/index' + ext;
+                foundPath = await checkFileExists(indexPath);
+                if (foundPath) {
+                    resolvedPaths.add(foundPath);
+                }
+            }
+
+            // 3. NEW: Try named component files in the directory
+            // This handles cases like: import { ItemTable } from '../components/items'
+            // Should find: ../components/items/ItemTable.js
+            if (importedNames && importedNames.length > 0) {
+                for (const importedName of importedNames) {
+                    if (importedName) {
+                        for (const ext of extensions) {
+                            const namedComponentPath = resolvedPath + '/' + importedName + ext;
+                            foundPath = await checkFileExists(namedComponentPath);
+                            if (foundPath) {
+                                resolvedPaths.add(foundPath);
+                                console.log(`✅ Found named component: ${importedName} at ${foundPath}`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Return all found paths as an array
+        return Array.from(resolvedPaths);
+    } catch (error) {
+        console.error('❌ Error resolving path:', error);
+        return [];
     }
+}
 
     // File Content Operations
     async getFileContent(filePath) {
@@ -897,9 +1030,15 @@ class FileExplorer {
 
             let output = '';
 
+            // Add pasting instructions at the very beginning
+            output += `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part X" (where X is the next number) after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts. When I say "DONE PASTING", then I'll give you the full instructions for what to do with the project.\n\n`;
+
+            // Add custom prompt if provided
             if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
-                output += this.settings.customPrompt.trim() + '\n\n';
-                output += '='.repeat(80) + '\n\n';
+                // Store custom prompt for later use at the end
+                const customInstructions = this.settings.customPrompt.trim();
+
+                // Don't add it here anymore, we'll add it at the end
             }
 
             output += 'FILE COLLECTION\n';
@@ -995,6 +1134,18 @@ class FileExplorer {
                 }
             }
 
+            // Add "DONE PASTING" and custom instructions at the end
+            output += '\n' + '='.repeat(80) + '\n\n';
+            output += 'DONE PASTING\n\n';
+            output += 'Now here are your instructions:\n\n';
+
+            // Add custom prompt at the end if provided
+            if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+                output += this.settings.customPrompt.trim() + '\n';
+            } else {
+                output += 'Please analyze the provided project files and provide insights or assistance as needed.\n';
+            }
+
             this.generatedFileContent = output;
 
             // Create chunks if content is large
@@ -1041,6 +1192,8 @@ class FileExplorer {
                     successMessage += `📦 Content split into ${this.fileChunks.length} chunks for easier handling\n`;
                 }
 
+                successMessage += `\n✨ Added AI pasting instructions at the beginning\n`;
+                successMessage += `📝 Added custom instructions at the end\n`;
                 successMessage += `\nThe file content will now be displayed for preview.`;
 
                 alert(successMessage);

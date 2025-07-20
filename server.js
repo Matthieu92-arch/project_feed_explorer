@@ -300,8 +300,8 @@ async function findDockerFiles(startPath, basePath = startPath) {
                     relativePath: relativePath,
                     directory: path.dirname(fullPath)
                 });
-            } else if (item.isDirectory() && !item.name.startsWith('.') && item.name !== 'node_modules') {
-                // Recursively search subdirectories, but skip hidden dirs and node_modules
+            } else if (item.isDirectory() && !item.name.startsWith('.') && item.name !== 'node_modules' && item.name !== 'site-packages') {
+                // Recursively search subdirectories, but skip hidden dirs, node_modules, and site-packages
                 const subDockerFiles = await findDockerFiles(fullPath, basePath);
                 dockerFiles.push(...subDockerFiles);
             }
@@ -607,7 +607,8 @@ async function findDjangoFiles(startPath, basePath = startPath) {
                       item.name !== '__pycache__' &&
                       item.name !== 'migrations' &&
                       item.name !== 'venv' &&
-                      item.name !== 'env') {
+                      item.name !== 'env' &&
+                      item.name !== 'site-packages') {
                 // Recursively search subdirectories, but skip common ignore patterns
                 try {
                     const subDjangoFiles = await findDjangoFiles(fullPath, basePath);
@@ -649,7 +650,8 @@ async function findReactFiles(startPath, basePath = startPath) {
                       item.name !== 'node_modules' &&
                       item.name !== 'build' &&
                       item.name !== 'dist' &&
-                      item.name !== 'coverage') {
+                      item.name !== 'coverage' &&
+                      item.name !== 'site-packages') {
                 // Recursively search subdirectories, but skip common ignore patterns
                 try {
                     const subReactFiles = await findReactFiles(fullPath, basePath);
