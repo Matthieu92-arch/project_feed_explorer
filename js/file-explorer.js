@@ -1120,191 +1120,212 @@ class FileExplorer {
 
     // File Generation with Chunking
     async generateFile() {
-        try {
-            const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
-                const item = document.querySelector(`[data-path="${path}"]`);
-                return !item || item.dataset.type === 'file';
-            });
+    try {
+        const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+            const item = document.querySelector(`[data-path="${path}"]`);
+            return !item || item.dataset.type === 'file';
+        });
 
-            let output = '';
+        let output = '';
 
-            // Add pasting instructions at the very beginning
-            output += `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part X" (where X is the next number) after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts. When I say "DONE PASTING", then I'll give you the full instructions for what to do with the project.\n\n`;
+        // Add pasting instructions at the very beginning
+        output += `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part X" (where X is the next number) after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts. When I say "DONE PASTING", then I'll give you the full instructions for what to do with the project.\n\n`;
 
-            // Add custom prompt if provided
-            if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
-                // Store custom prompt for later use at the end
-                const customInstructions = this.settings.customPrompt.trim();
+        // Add custom prompt if provided
+        if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+            // Store custom prompt for later use at the end
+            const customInstructions = this.settings.customPrompt.trim();
 
-                // Don't add it here anymore, we'll add it at the end
-            }
-
-            output += 'FILE COLLECTION\n';
-            output += '='.repeat(80) + '\n\n';
-            output += `Generated: ${new Date().toISOString()}\n`;
-            output += `Total files: ${selectedFilesList.length}\n`;
-            output += `Root directory: ${this.currentPath}\n`;
-
-            const enabledProjectTypes = [];
-            if (this.settings.projectTypes.django && this.djangoFiles.length > 0) {
-                enabledProjectTypes.push(`Django (${this.djangoFiles.length} files)`);
-            }
-            if (this.settings.projectTypes.react && this.reactFiles.length > 0) {
-                enabledProjectTypes.push(`React (${this.reactFiles.length} files)`);
-            }
-            if (enabledProjectTypes.length > 0) {
-                output += `Project types detected: ${enabledProjectTypes.join(', ')}\n`;
-            }
-
-            if (this.dockerFiles.length > 0) {
-                output += `Docker files included: ${this.dockerFiles.length}\n`;
-            }
-            output += `Output saved to: output_files_selected/ directory\n`;
-            output += '\n';
-
-            for (const filePath of selectedFilesList.sort()) {
-                try {
-                    if (typeof filePath !== 'string') {
-                        console.error('Invalid filePath type:', typeof filePath, filePath);
-                        continue;
-                    }
-
-                    const content = await this.getFileContent(filePath);
-                    const fileName = filePath.split('/').pop();
-                    const directory = filePath.substring(0, filePath.lastIndexOf('/'));
-                    const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
-
-                    output += '='.repeat(80) + '\n';
-                    output += `filename: ${fileName}\n`;
-                    output += `directory: ${directory}\n`;
-                    output += `relative_path: ${relativePath}\n`;
-                    output += `full_path: ${filePath}\n`;
-
-                    const classifications = [];
-                    if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
-                        classifications.push('docker');
-                    }
-                    if (this.djangoFiles.some(djangoFile => djangoFile.path === filePath)) {
-                        const djangoFile = this.djangoFiles.find(df => df.path === filePath);
-                        classifications.push(`django-${djangoFile.type}`);
-                    }
-                    if (this.reactFiles.some(reactFile => reactFile.path === filePath)) {
-                        const reactFile = this.reactFiles.find(rf => rf.path === filePath);
-                        classifications.push(`react-${reactFile.type}`);
-                    }
-
-                    if (classifications.length > 0) {
-                        output += `classification: ${classifications.join(', ')}\n`;
-                    }
-
-                    if (content && content.isBinary) {
-                        output += `type: binary\n`;
-                        output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
-                    } else if (content) {
-                        output += `type: text\n`;
-                        output += `lines: ${content.lines}\n`;
-                        output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
-                    }
-
-                    output += '='.repeat(80) + '\n\n';
-
-                    if (content && !content.isBinary) {
-                        output += content.content;
-                    } else if (content && content.isBinary) {
-                        output += '// Binary file - content not included\n';
-                    } else {
-                        output += '// Could not read file content\n';
-                    }
-
-                    output += '\n\n';
-                } catch (error) {
-                    console.error(`Error processing file ${filePath}:`, error);
-                    const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
-                    const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
-
-                    output += '='.repeat(80) + '\n';
-                    output += `filename: ${fileName}\n`;
-                    output += `directory: ${directory}\n`;
-                    output += `full_path: ${filePath}\n`;
-                    output += `error: ${error.message}\n`;
-                    output += '='.repeat(80) + '\n\n';
-                    output += '// Error reading file\n\n';
-                }
-            }
-
-            // Add "DONE PASTING" and custom instructions at the end
-            output += '\n' + '='.repeat(80) + '\n\n';
-            output += 'DONE PASTING\n\n';
-            output += 'Now here are your instructions:\n\n';
-
-            // Add custom prompt at the end if provided
-            if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
-                output += this.settings.customPrompt.trim() + '\n';
-            } else {
-                output += 'Please analyze the provided project files and provide insights or assistance as needed.\n';
-            }
-
-            this.generatedFileContent = output;
-
-            // Create chunks if content is large
-            if (output.length > this.chunkSize) {
-                this.fileChunks = this.splitIntoChunks(output, this.chunkSize);
-                this.currentChunkIndex = 0;
-                console.log(`📦 Created ${this.fileChunks.length} chunks from ${output.length} characters`);
-            } else {
-                this.fileChunks = [{
-                    index: 0,
-                    label: 'a',
-                    filename: 'file_a',
-                    content: output,
-                    size: output.length,
-                    startPos: 0,
-                    endPos: output.length
-                }];
-                this.currentChunkIndex = 0;
-            }
-
-            const response = await fetch('/api/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain',
-                },
-                body: output
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                this.hideConfirmModal();
-
-                let successMessage = `✅ File saved successfully!\n\n` +
-                                   `📁 Directory: output_files_selected/\n` +
-                                   `📄 Filename: ${result.filename}\n` +
-                                   `📍 Full path: ${result.relativePath}\n`;
-
-                if (enabledProjectTypes.length > 0) {
-                    successMessage += `🔧 Project types: ${enabledProjectTypes.join(', ')}\n`;
-                }
-
-                if (this.fileChunks.length > 1) {
-                    successMessage += `📦 Content split into ${this.fileChunks.length} chunks for easier handling\n`;
-                }
-
-                successMessage += `\n✨ Added AI pasting instructions at the beginning\n`;
-                successMessage += `📝 Added custom instructions at the end\n`;
-                successMessage += `\nThe file content will now be displayed for preview.`;
-
-                alert(successMessage);
-                this.showContentModal();
-            } else {
-                alert(`❌ Error saving file: ${result.error}`);
-            }
-
-        } catch (error) {
-            console.error('Error generating file:', error);
-            alert(`❌ Error generating file: ${error.message}`);
+            // Don't add it here anymore, we'll add it at the end
         }
+
+        output += 'FILE COLLECTION\n';
+        output += '='.repeat(80) + '\n\n';
+        output += `Generated: ${new Date().toISOString()}\n`;
+        output += `Total files: ${selectedFilesList.length}\n`;
+        output += `Root directory: ${this.currentPath}\n`;
+
+        const enabledProjectTypes = [];
+        if (this.settings.projectTypes.django && this.djangoFiles.length > 0) {
+            enabledProjectTypes.push(`Django (${this.djangoFiles.length} files)`);
+        }
+        if (this.settings.projectTypes.react && this.reactFiles.length > 0) {
+            enabledProjectTypes.push(`React (${this.reactFiles.length} files)`);
+        }
+        if (enabledProjectTypes.length > 0) {
+            output += `Project types detected: ${enabledProjectTypes.join(', ')}\n`;
+        }
+
+        if (this.dockerFiles.length > 0) {
+            output += `Docker files included: ${this.dockerFiles.length}\n`;
+        }
+        output += `Output saved to: output_files_selected/ directory\n`;
+        output += '\n';
+
+        // Collect file info for the summary
+        const fileInfoList = [];
+
+        for (const filePath of selectedFilesList.sort()) {
+            try {
+                if (typeof filePath !== 'string') {
+                    console.error('Invalid filePath type:', typeof filePath, filePath);
+                    continue;
+                }
+
+                const content = await this.getFileContent(filePath);
+                const fileName = filePath.split('/').pop();
+                const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+
+                // Add to file info list for summary (use relative path if available, otherwise filename)
+                const displayPath = relativePath || fileName;
+                fileInfoList.push(displayPath);
+
+                output += '='.repeat(80) + '\n';
+                output += `filename: ${fileName}\n`;
+                output += `directory: ${directory}\n`;
+                output += `relative_path: ${relativePath}\n`;
+                output += `full_path: ${filePath}\n`;
+
+                const classifications = [];
+                if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
+                    classifications.push('docker');
+                }
+                if (this.djangoFiles.some(djangoFile => djangoFile.path === filePath)) {
+                    const djangoFile = this.djangoFiles.find(df => df.path === filePath);
+                    classifications.push(`django-${djangoFile.type}`);
+                }
+                if (this.reactFiles.some(reactFile => reactFile.path === filePath)) {
+                    const reactFile = this.reactFiles.find(rf => rf.path === filePath);
+                    classifications.push(`react-${reactFile.type}`);
+                }
+
+                if (classifications.length > 0) {
+                    output += `classification: ${classifications.join(', ')}\n`;
+                }
+
+                if (content && content.isBinary) {
+                    output += `type: binary\n`;
+                    output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
+                } else if (content) {
+                    output += `type: text\n`;
+                    output += `lines: ${content.lines}\n`;
+                    output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
+                }
+
+                output += '='.repeat(80) + '\n\n';
+
+                if (content && !content.isBinary) {
+                    output += content.content;
+                } else if (content && content.isBinary) {
+                    output += '// Binary file - content not included\n';
+                } else {
+                    output += '// Could not read file content\n';
+                }
+
+                output += '\n\n';
+            } catch (error) {
+                console.error(`Error processing file ${filePath}:`, error);
+                const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
+                const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
+
+                // Still add to file info list even if there was an error
+                if (typeof filePath === 'string') {
+                    const fileName = filePath.split('/').pop();
+                    const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+                    const displayPath = relativePath || fileName;
+                    fileInfoList.push(displayPath);
+                }
+
+                output += '='.repeat(80) + '\n';
+                output += `filename: ${fileName}\n`;
+                output += `directory: ${directory}\n`;
+                output += `full_path: ${filePath}\n`;
+                output += `error: ${error.message}\n`;
+                output += '='.repeat(80) + '\n\n';
+                output += '// Error reading file\n\n';
+            }
+        }
+
+        // Add "DONE PASTING" and custom instructions at the end
+        output += '\n' + '='.repeat(80) + '\n\n';
+        output += 'DONE PASTING\n\n';
+
+        // Add file summary line with paths
+        if (fileInfoList.length > 0) {
+            output += `I just gave you ${fileInfoList.length} files that are: ${fileInfoList.join(', ')}\n\n`;
+        }
+
+        output += 'Now here are your instructions:\n\n';
+
+        // Add custom prompt at the end if provided
+        if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+            output += this.settings.customPrompt.trim() + '\n';
+        } else {
+            output += 'Please analyze the provided project files and provide insights or assistance as needed.\n';
+        }
+
+        this.generatedFileContent = output;
+
+        // Create chunks if content is large
+        if (output.length > this.chunkSize) {
+            this.fileChunks = this.splitIntoChunks(output, this.chunkSize);
+            this.currentChunkIndex = 0;
+            console.log(`📦 Created ${this.fileChunks.length} chunks from ${output.length} characters`);
+        } else {
+            this.fileChunks = [{
+                index: 0,
+                label: 'a',
+                filename: 'file_a',
+                content: output,
+                size: output.length,
+                startPos: 0,
+                endPos: output.length
+            }];
+            this.currentChunkIndex = 0;
+        }
+
+        const response = await fetch('/api/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain',
+            },
+            body: output
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            this.hideConfirmModal();
+
+            let successMessage = `✅ File saved successfully!\n\n` +
+                               `📁 Directory: output_files_selected/\n` +
+                               `📄 Filename: ${result.filename}\n` +
+                               `📍 Full path: ${result.relativePath}\n`;
+
+            if (enabledProjectTypes.length > 0) {
+                successMessage += `🔧 Project types: ${enabledProjectTypes.join(', ')}\n`;
+            }
+
+            if (this.fileChunks.length > 1) {
+                successMessage += `📦 Content split into ${this.fileChunks.length} chunks for easier handling\n`;
+            }
+
+            successMessage += `\n✨ Added AI pasting instructions at the beginning\n`;
+            successMessage += `📝 Added custom instructions and file summary at the end\n`;
+            successMessage += `\nThe file content will now be displayed for preview.`;
+
+            alert(successMessage);
+            this.showContentModal();
+        } else {
+            alert(`❌ Error saving file: ${result.error}`);
+        }
+
+    } catch (error) {
+        console.error('Error generating file:', error);
+        alert(`❌ Error generating file: ${error.message}`);
     }
+}
 
     // Modal Operations
     showContentModal() {
