@@ -871,6 +871,77 @@ class FileExplorer {
             }
         };
 
+        // Helper function to parse index.js and find re-exports
+        const parseIndexFile = async (indexPath) => {
+            try {
+                const content = await this.getFileContent(indexPath);
+                if (!content || content.isBinary) return [];
+
+                const reExports = [];
+                const lines = content.content.split('\n');
+
+                for (const line of lines) {
+                    // Match: export { default as ComponentName } from './path/to/Component';
+                    const defaultAsMatch = line.match(/export\s*\{\s*default\s+as\s+(\w+)\s*\}\s*from\s*['"`]([^'"`]+)['"`]/);
+                    if (defaultAsMatch) {
+                        reExports.push({
+                            exportedName: defaultAsMatch[1],
+                            relativePath: defaultAsMatch[2]
+                        });
+                        continue;
+                    }
+
+                    // Match: export { ComponentName } from './path/to/Component';
+                    const namedExportMatch = line.match(/export\s*\{\s*([^}]+)\s*\}\s*from\s*['"`]([^'"`]+)['"`]/);
+                    if (namedExportMatch) {
+                        const exportedNames = namedExportMatch[1].split(',').map(name => name.trim());
+                        exportedNames.forEach(name => {
+                            reExports.push({
+                                exportedName: name,
+                                relativePath: namedExportMatch[2]
+                            });
+                        });
+                        continue;
+                    }
+
+                    // Match: export * from './path/to/Component';
+                    const starExportMatch = line.match(/export\s*\*\s*from\s*['"`]([^'"`]+)['"`]/);
+                    if (starExportMatch) {
+                        reExports.push({
+                            exportedName: '*',
+                            relativePath: starExportMatch[1]
+                        });
+                    }
+                }
+
+                return reExports;
+            } catch (error) {
+                console.error('Error parsing index file:', error);
+                return [];
+            }
+        };
+
+        // Helper function to resolve a path relative to the index file
+        const resolveRelativeToIndex = (indexDir, relativePath) => {
+            if (relativePath.startsWith('./')) {
+                return indexDir + '/' + relativePath.substring(2);
+            } else if (relativePath.startsWith('../')) {
+                let pathParts = indexDir.split('/');
+                let relativeParts = relativePath.split('/');
+
+                for (let part of relativeParts) {
+                    if (part === '..') {
+                        pathParts.pop();
+                    } else if (part !== '.') {
+                        pathParts.push(part);
+                    }
+                }
+                return pathParts.join('/');
+            } else {
+                return indexDir + '/' + relativePath;
+            }
+        };
+
         const resolvedPaths = new Set();
 
         // 1. Try the exact path as specified
@@ -904,12 +975,39 @@ class FileExplorer {
                 foundPath = await checkFileExists(indexPath);
                 if (foundPath) {
                     resolvedPaths.add(foundPath);
+
+                    // NEW: Parse the index file to find re-exports
+                    if (importedNames && importedNames.length > 0) {
+                        const reExports = await parseIndexFile(foundPath);
+                        const indexDir = foundPath.substring(0, foundPath.lastIndexOf('/'));
+
+                        for (const importedName of importedNames) {
+                            if (importedName) {
+                                // Find matching re-export
+                                const matchingExport = reExports.find(reExport =>
+                                    reExport.exportedName === importedName || reExport.exportedName === '*'
+                                );
+
+                                if (matchingExport) {
+                                    const reExportPath = resolveRelativeToIndex(indexDir, matchingExport.relativePath);
+
+                                    // Try the re-export path with extensions
+                                    for (const ext of extensions) {
+                                        const reExportWithExt = reExportPath + ext;
+                                        const reExportFound = await checkFileExists(reExportWithExt);
+                                        if (reExportFound) {
+                                            resolvedPaths.add(reExportFound);
+                                            console.log(`✅ Found re-exported component: ${importedName} at ${reExportFound} via index file ${foundPath}`);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            // 3. NEW: Try named component files in the directory
-            // This handles cases like: import { ItemTable } from '../components/items'
-            // Should find: ../components/items/ItemTable.js
+            // 3. Try named component files in the directory (existing logic)
             if (importedNames && importedNames.length > 0) {
                 for (const importedName of importedNames) {
                     if (importedName) {
