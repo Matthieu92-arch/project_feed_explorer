@@ -30,6 +30,7 @@ class FileExplorer {
 
     async init() {
         this.setupEventListeners();
+        this.setupSuccessModalListeners();
 
         // Load settings first
         await this.loadSettings();
@@ -1119,6 +1120,7 @@ class FileExplorer {
     }
 
     // File Generation with Chunking
+    // Updated generateFile method to use success modal
     async generateFile() {
     try {
         const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
@@ -1128,17 +1130,7 @@ class FileExplorer {
 
         let output = '';
 
-        // Add pasting instructions at the very beginning
-        output += `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part X" (where X is the next number) after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts. When I say "DONE PASTING", then I'll give you the full instructions for what to do with the project.\n\n`;
-
-        // Add custom prompt if provided
-        if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
-            // Store custom prompt for later use at the end
-            const customInstructions = this.settings.customPrompt.trim();
-
-            // Don't add it here anymore, we'll add it at the end
-        }
-
+        // Add file collection header
         output += 'FILE COLLECTION\n';
         output += '='.repeat(80) + '\n\n';
         output += `Generated: ${new Date().toISOString()}\n`;
@@ -1177,7 +1169,7 @@ class FileExplorer {
                 const directory = filePath.substring(0, filePath.lastIndexOf('/'));
                 const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
 
-                // Add to file info list for summary (use relative path if available, otherwise filename)
+                // Add to file info list for summary
                 const displayPath = relativePath || fileName;
                 fileInfoList.push(displayPath);
 
@@ -1229,7 +1221,7 @@ class FileExplorer {
                 const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
                 const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
 
-                // Still add to file info list even if there was an error
+                // Add to file info list even if there was an error
                 if (typeof filePath === 'string') {
                     const fileName = filePath.split('/').pop();
                     const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
@@ -1247,7 +1239,7 @@ class FileExplorer {
             }
         }
 
-        // Add "DONE PASTING" and custom instructions at the end
+        // Add final instructions only for the last (or only) chunk
         output += '\n' + '='.repeat(80) + '\n\n';
         output += 'DONE PASTING\n\n';
 
@@ -1258,7 +1250,7 @@ class FileExplorer {
 
         output += 'Now here are your instructions:\n\n';
 
-        // Add custom prompt at the end if provided
+        // Add custom prompt if provided
         if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
             output += this.settings.customPrompt.trim() + '\n';
         } else {
@@ -1270,8 +1262,28 @@ class FileExplorer {
         // Create chunks if content is large
         if (output.length > this.chunkSize) {
             this.fileChunks = this.splitIntoChunks(output, this.chunkSize);
-            this.currentChunkIndex = 0;
             console.log(`📦 Created ${this.fileChunks.length} chunks from ${output.length} characters`);
+
+            // Modify chunks to include part-specific instructions
+            this.fileChunks = this.fileChunks.map((chunk, index) => {
+                let chunkContent = chunk.content;
+                if (index < this.fileChunks.length - 1) {
+                    // For non-last chunks, add part instruction
+                    chunkContent = `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part ${index + 2}" after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts.\n\n${chunkContent}`;
+                } else {
+                    // For the last chunk, ensure it ends with DONE PASTING and instructions
+                    chunkContent = chunkContent.replace(
+                        /--- wait for Part \d+, only respond with "Ready for next one boss."---/,
+                        ''
+                    );
+                }
+                return {
+                    ...chunk,
+                    content: chunkContent,
+                    size: chunkContent.length
+                };
+            });
+            this.currentChunkIndex = 0;
         } else {
             this.fileChunks = [{
                 index: 0,
@@ -1297,26 +1309,7 @@ class FileExplorer {
 
         if (result.success) {
             this.hideConfirmModal();
-
-            let successMessage = `✅ File saved successfully!\n\n` +
-                               `📁 Directory: output_files_selected/\n` +
-                               `📄 Filename: ${result.filename}\n` +
-                               `📍 Full path: ${result.relativePath}\n`;
-
-            if (enabledProjectTypes.length > 0) {
-                successMessage += `🔧 Project types: ${enabledProjectTypes.join(', ')}\n`;
-            }
-
-            if (this.fileChunks.length > 1) {
-                successMessage += `📦 Content split into ${this.fileChunks.length} chunks for easier handling\n`;
-            }
-
-            successMessage += `\n✨ Added AI pasting instructions at the beginning\n`;
-            successMessage += `📝 Added custom instructions and file summary at the end\n`;
-            successMessage += `\nThe file content will now be displayed for preview.`;
-
-            alert(successMessage);
-            this.showContentModal();
+            this.showSuccessModal(result, enabledProjectTypes);
         } else {
             alert(`❌ Error saving file: ${result.error}`);
         }
@@ -1325,6 +1318,174 @@ class FileExplorer {
         console.error('Error generating file:', error);
         alert(`❌ Error generating file: ${error.message}`);
     }
+}
+
+    // Show success modal with file information
+showSuccessModal(result, enabledProjectTypes) {
+    const modal = document.getElementById('successModal');
+
+    // Populate file information
+    document.getElementById('successFilename').textContent = result.filename;
+    document.getElementById('successDirectory').textContent = 'output_files_selected/';
+    document.getElementById('successFullPath').textContent = result.relativePath;
+
+    // Calculate and show file size
+    const fileSize = new Blob([this.generatedFileContent]).size;
+    document.getElementById('successFileSize').textContent = this.formatFileSize(fileSize);
+
+    // Populate content statistics
+    const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+        const item = document.querySelector(`[data-path="${path}"]`);
+        return !item || item.dataset.type === 'file';
+    });
+
+    const lines = this.generatedFileContent.split('\n').length;
+    const characters = this.generatedFileContent.length;
+
+    document.getElementById('successTotalFiles').textContent = selectedFilesList.length;
+    document.getElementById('successTotalLines').textContent = lines.toLocaleString();
+    document.getElementById('successTotalChars').textContent = characters.toLocaleString();
+
+    // Show chunk information if applicable
+    const chunkStat = document.getElementById('successChunkStat');
+    if (this.fileChunks.length > 1) {
+        chunkStat.style.display = 'flex';
+        document.getElementById('successChunkCount').textContent = this.fileChunks.length;
+    } else {
+        chunkStat.style.display = 'none';
+    }
+
+    // Show project types if any
+    const projectTypesSection = document.getElementById('successProjectTypesSection');
+    const projectTypesContainer = document.getElementById('successProjectTypes');
+
+    if (enabledProjectTypes.length > 0) {
+        projectTypesSection.style.display = 'block';
+        projectTypesContainer.innerHTML = '';
+
+        enabledProjectTypes.forEach(typeInfo => {
+            const typeElement = document.createElement('div');
+            typeElement.className = 'success-project-type';
+
+            if (typeInfo.includes('Django')) {
+                typeElement.classList.add('django');
+                typeElement.innerHTML = '🐍 ' + typeInfo;
+            } else if (typeInfo.includes('React')) {
+                typeElement.classList.add('react');
+                typeElement.innerHTML = '⚛️ ' + typeInfo;
+            }
+
+            projectTypesContainer.appendChild(typeElement);
+        });
+    } else {
+        projectTypesSection.style.display = 'none';
+    }
+
+    // Show/hide features based on settings
+    const customPromptFeature = document.getElementById('successCustomPromptFeature');
+    if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+        customPromptFeature.style.display = 'flex';
+    } else {
+        customPromptFeature.style.display = 'none';
+    }
+
+    const dockerFeature = document.getElementById('successDockerFeature');
+    if (this.dockerFiles.length > 0) {
+        dockerFeature.style.display = 'flex';
+    } else {
+        dockerFeature.style.display = 'none';
+    }
+
+    const dependencyFeature = document.getElementById('successDependencyFeature');
+    if (this.fileDependencies.size > 0) {
+        dependencyFeature.style.display = 'flex';
+    } else {
+        dependencyFeature.style.display = 'none';
+    }
+
+    // Show the modal
+    modal.classList.remove('hidden');
+}
+
+// Hide success modal
+hideSuccessModal() {
+    document.getElementById('successModal').classList.add('hidden');
+}
+
+// Open the output folder (platform-specific)
+async openOutputFolder() {
+    try {
+        const { exec } = require('child_process');
+        const path = require('path');
+        const outputDir = path.join(process.cwd(), 'output_files_selected');
+
+        const platform = process.platform;
+        let command;
+
+        if (platform === 'darwin') {
+            command = `open "${outputDir}"`;
+        } else if (platform === 'win32') {
+            command = `explorer "${outputDir}"`;
+        } else {
+            command = `xdg-open "${outputDir}"`;
+        }
+
+        exec(command, (error) => {
+            if (error) {
+                console.error('Error opening folder:', error);
+                alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
+            }
+        });
+    } catch (error) {
+        console.error('Error opening folder:', error);
+        alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
+    }
+}
+
+// Setup success modal event listeners (add this to your setupEventListeners method)
+setupSuccessModalListeners() {
+
+        const successPreviewBtn = document.getElementById('successPreviewBtn');
+    console.log('successPreviewBtn found:', !!successPreviewBtn);
+    if (successPreviewBtn) {
+        successPreviewBtn.addEventListener('click', () => {
+            console.log('Preview button clicked, opening content modal');
+            this.hideSuccessModal();
+            this.showContentModal();
+        });
+    }
+    const closeSuccessModal = document.getElementById('closeSuccessModal');
+    if (closeSuccessModal) {
+        closeSuccessModal.addEventListener('click', () => this.hideSuccessModal());
+    }
+
+
+    const successCloseBtn = document.getElementById('successCloseBtn');
+    if (successCloseBtn) {
+        successCloseBtn.addEventListener('click', () => this.hideSuccessModal());
+    }
+
+    const successOpenFolderBtn = document.getElementById('successOpenFolderBtn');
+    if (successOpenFolderBtn) {
+        successOpenFolderBtn.addEventListener('click', () => this.openOutputFolder());
+    }
+
+    // Close modal when clicking outside
+    const successModal = document.getElementById('successModal');
+    if (successModal) {
+        successModal.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+                this.hideSuccessModal();
+            }
+        });
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !successModal.classList.contains('hidden')) {
+            this.hideSuccessModal();
+        }
+    });
 }
 
     // Modal Operations
