@@ -1,9 +1,17 @@
 class FileExplorer {
     constructor() {
-        this.currentPath = '';
+        this.currentPath = '/';
         this.selectedFiles = new Set();
-        this.fileContents = new Map();
         this.expandedDirectories = new Set();
+        this.fileContents = new Map();
+        this.fileDependencies = new Map();
+        this.dependencyOwners = new Map();
+        this.dockerFiles = [];
+        this.djangoFiles = [];
+        this.reactFiles = [];
+        this.fileChunks = [];
+        this.currentChunkIndex = 0;
+        this.chunkSize = 30000;
         this.settings = {
             defaultPath: '',
             includeDockerFiles: false,
@@ -13,66 +21,188 @@ class FileExplorer {
                 react: false
             }
         };
-        this.dockerFiles = [];
-        this.djangoFiles = [];
-        this.reactFiles = [];
-        this.fileDependencies = new Map();
-        this.dependencyOwners = new Map();
-        this.generatedFileContent = '';
-
-        // Chunking properties
-        this.fileChunks = [];
-        this.currentChunkIndex = 0;
-        this.chunkSize = 100000;
-
-        this.init();
+        this.audio = new Audio('/paper-245786.mp3'); // Initialize audio object
     }
 
     async init() {
-        this.setupEventListeners();
-        this.setupSuccessModalListeners();
-
-        // Load settings first
         await this.loadSettings();
-
-        // Start from settings default path or server's current working directory
-        if (this.settings.defaultPath && await this.directoryExists(this.settings.defaultPath)) {
-            this.currentPath = this.settings.defaultPath;
-        } else {
-            this.currentPath = await this.getCurrentWorkingDirectory();
-        }
-
-        document.getElementById('currentPath').textContent = this.currentPath;
         await this.loadDirectory(this.currentPath);
-
-        // Scan for Docker files if enabled
-        if (this.settings.includeDockerFiles) {
-            await this.scanForDockerFiles();
-        }
-
-        if (this.settings.defaultPath &&
-            (this.settings.projectTypes.django || this.settings.projectTypes.react)) {
-            await this.scanForProjectFiles();
-        }
-
-        // Setup resizer after everything else is loaded
+        this.setupEventListeners();
         this.setupResizer();
-
-        // Make this instance globally accessible for the browse button
-        window.fileExplorer = this;
+        this.setupSuccessModalListeners();
+        this.updateValidateButton();
     }
 
-    // Settings Management
+    // Utility Methods
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    splitIntoChunks(content, chunkSize) {
+        const chunks = [];
+        let startPos = 0;
+        let index = 0;
+
+        while (startPos < content.length) {
+            let endPos = startPos + chunkSize;
+
+            if (endPos < content.length) {
+                const lastNewline = content.lastIndexOf('\n', endPos);
+                if (lastNewline > startPos) {
+                    endPos = lastNewline + 1;
+                }
+            } else {
+                endPos = content.length;
+            }
+
+            const chunkContent = content.slice(startPos, endPos);
+            chunks.push({
+                index,
+                label: String.fromCharCode(97 + index),
+                filename: `file_${String.fromCharCode(97 + index)}`,
+                content: chunkContent,
+                size: chunkContent.length,
+                startPos,
+                endPos
+            });
+
+            startPos = endPos;
+            index++;
+        }
+
+        return chunks;
+    }
+
+    createChunkNavigation() {
+        const nav = document.createElement('div');
+        nav.className = 'chunk-navigation';
+        this.fileChunks.forEach((chunk, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'chunk-btn';
+            btn.id = `chunkBtn${index}`;
+            btn.textContent = chunk.label.toUpperCase();
+            nav.appendChild(btn);
+        });
+        return nav;
+    }
+
+    updateChunkInfo() {
+        const chunkInfo = document.getElementById('chunkInfo');
+        if (chunkInfo && this.fileChunks.length > 1) {
+            const currentChunk = this.fileChunks[this.currentChunkIndex];
+            chunkInfo.textContent = `Part ${currentChunk.label.toUpperCase()} (${this.currentChunkIndex + 1}/${this.fileChunks.length}) • ${this.formatFileSize(currentChunk.size)}`;
+        }
+    }
+
+    switchToChunk(index) {
+        this.currentChunkIndex = index;
+        const generatedContent = document.getElementById('generatedContent');
+        const currentChunk = this.fileChunks[index];
+        generatedContent.textContent = currentChunk.content;
+
+        const modalHeader = document.querySelector('#contentModal .modal-header h2');
+        modalHeader.textContent = `📄 ${currentChunk.filename} (${this.currentChunkIndex + 1}/${this.fileChunks.length})`;
+
+        const copyBtn = document.getElementById('copyContentBtn');
+        copyBtn.textContent = `📋 Copy ${currentChunk.filename}`;
+        copyBtn.classList.add('chunk-copy');
+
+        document.querySelectorAll('.chunk-btn').forEach((btn, i) => {
+            btn.setAttribute('aria-pressed', i === index ? 'true' : 'false');
+        });
+
+        this.updateChunkInfo();
+        document.getElementById('contentDisplayModal').scrollTop = 0;
+    }
+
+    async copyAllChunks() {
+        try {
+            const allContent = this.fileChunks.map(chunk => chunk.content).join('\n');
+            await navigator.clipboard.writeText(allContent);
+
+            const copyBtn = document.getElementById('copyAllChunksBtn');
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = '✅ All Chunks Copied!';
+            copyBtn.classList.add('copied');
+
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+                copyBtn.classList.remove('copied');
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to copy all chunks:', error);
+            alert('❌ Failed to copy all chunks. Please copy manually.');
+        }
+    }
+
+    downloadAllChunks() {
+        const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+        const zip = new JSZip();
+
+        this.fileChunks.forEach(chunk => {
+            zip.file(`${chunk.filename}.txt`, chunk.content);
+        });
+
+        zip.generateAsync({ type: 'blob' }).then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `file_collection_${timestamp}.zip`;
+            a.style.display = 'none';
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert(`📥 Download started: file_collection_${timestamp}.zip`);
+        });
+    }
+
+    handleChunkKeyNavigation(event) {
+        if (event.target.closest('#contentModal') && this.fileChunks.length > 1) {
+            if (event.key === 'ArrowRight' && this.currentChunkIndex < this.fileChunks.length - 1) {
+                this.switchToChunk(this.currentChunkIndex + 1);
+                this.playChunkSound(); // Play sound on chunk switch
+            } else if (event.key === 'ArrowLeft' && this.currentChunkIndex > 0) {
+                this.switchToChunk(this.currentChunkIndex - 1);
+                this.playChunkSound(); // Play sound on chunk switch
+            }
+        }
+    }
+
+    // New method to play sound
+    playChunkSound() {
+        this.audio.currentTime = 0; // Reset to start
+        this.audio.play().catch(error => {
+            console.error('Error playing sound:', error);
+        });
+    }
+
     async loadSettings() {
         try {
             const response = await fetch('/api/settings');
-            if (response.ok) {
-                const settings = await response.json();
-                this.settings = { ...this.settings, ...settings };
-                console.log('✅ Settings loaded:', this.settings);
+            this.settings = await response.json();
+            console.log('Settings loaded:', this.settings);
+
+            if (this.settings.defaultPath) {
+                this.currentPath = this.settings.defaultPath;
+                await this.loadDirectory(this.currentPath);
+            }
+
+            if (this.settings.includeDockerFiles) {
+                await this.scanForDockerFiles();
+            }
+
+            if (this.settings.projectTypes?.django || this.settings.projectTypes?.react) {
+                await this.scanForProjectFiles();
             }
         } catch (error) {
-            console.log('⚠️ No settings found, using defaults');
+            console.error('Error loading settings:', error);
         }
     }
 
@@ -85,363 +215,164 @@ class FileExplorer {
                 },
                 body: JSON.stringify(this.settings)
             });
-
-            if (response.ok) {
-                console.log('✅ Settings saved successfully');
-                return true;
-            } else {
-                console.error('❌ Failed to save settings');
-                return false;
-            }
+            return response.ok;
         } catch (error) {
-            console.error('❌ Error saving settings:', error);
+            console.error('Error saving settings:', error);
             return false;
         }
     }
 
-    // File Chunking Methods
-    splitIntoChunks(content, chunkSize = 350000) {
-        const chunks = [];
-
-        // Check if this content has pasting instructions
-        const hasPastingInstructions = content.startsWith(`I'm going to paste multiple parts`);
-
-        // If content fits in one chunk and has no pasting instructions, return as single chunk
-        if (!hasPastingInstructions && content.length <= chunkSize) {
-            const chunkLabel = 'a';
-            chunks.push({
-                index: 0,
-                label: chunkLabel,
-                filename: `file_${chunkLabel}`,
-                content: content,
-                size: content.length,
-                startPos: 0,
-                endPos: content.length
-            });
-            return chunks;
-        }
-
-        // For content with pasting instructions OR content that needs chunking
-        let currentIndex = 0;
-        let chunkNumber = 1;
-
-        while (currentIndex < content.length) {
-            let finalChunk;
-            let contentLength;
-
-            if (hasPastingInstructions) {
-                // Add "Part X:" prefix for pasting instructions
-                const partPrefix = `Part ${chunkNumber}:\n\n`;
-                const endPrefix = `--- wait for Part ${chunkNumber + 1}, only respond with "Ready for next one boss."---`;
-                const availableContentSpace = chunkSize - partPrefix.length;
-
-                // Get the content chunk (but don't exceed remaining content)
-                const remainingContent = content.length - currentIndex;
-                contentLength = Math.min(availableContentSpace, remainingContent);
-                const contentChunk = content.substring(currentIndex, currentIndex + contentLength);
-
-                // Create the final chunk with prefix
-                finalChunk = partPrefix + contentChunk + endPrefix;
-            } else {
-                // No pasting instructions, just chunk normally
-                const remainingContent = content.length - currentIndex;
-                contentLength = Math.min(chunkSize, remainingContent);
-                finalChunk = content.substring(currentIndex, currentIndex + contentLength);
-            }
-
-            const chunkLabel = String.fromCharCode(96 + chunkNumber); // 'a', 'b', 'c', etc.
-            const filename = hasPastingInstructions ? `part_${chunkNumber}` : `file_${chunkLabel}`;
-
-            chunks.push({
-                index: chunkNumber - 1,
-                label: chunkLabel,
-                filename: filename,
-                content: finalChunk,
-                size: finalChunk.length,
-                startPos: currentIndex,
-                endPos: currentIndex + contentLength,
-                partNumber: chunkNumber
-            });
-
-            // Move to next chunk
-            currentIndex += contentLength;
-            chunkNumber++;
-        }
-
-        return chunks;
-    }
-
-    createChunkNavigation() {
-        const navigation = document.createElement('div');
-        navigation.className = 'chunk-navigation';
-
-        const instructionText = this.fileChunks.length > 1 && this.fileChunks[0].content.startsWith(`I'm going to paste multiple parts`)
-            ? 'AI-ready parts for sequential pasting'
-            : 'File split into chunks';
-
-        navigation.innerHTML = `
-            <div class="chunk-nav-header">
-                <span class="chunk-info">${instructionText} - ${this.fileChunks.length} parts (${this.chunkSize.toLocaleString()} chars each)</span>
-            </div>
-            <div class="chunk-buttons" id="chunkButtons">
-                ${this.fileChunks.map((chunk, index) => `
-                    <button class="chunk-btn ${index === 0 ? 'active' : ''}" 
-                            data-chunk-index="${index}" 
-                            id="chunkBtn${index}">
-                        <div class="chunk-btn-label">${chunk.filename}</div>
-                        <div class="chunk-btn-size">${this.formatFileSize(chunk.size)}</div>
-                    </button>
-                `).join('')}
-            </div>
-        `;
-
-        return navigation;
-    }
-
-    switchToChunk(chunkIndex) {
-        if (chunkIndex < 0 || chunkIndex >= this.fileChunks.length) return;
-
-        // Add loading state
-        const contentDisplayModal = document.getElementById('contentDisplayModal');
-        contentDisplayModal.classList.add('chunk-loading');
-
-        // Simulate loading delay for smooth UX
-        setTimeout(() => {
-            this.currentChunkIndex = chunkIndex;
-            const chunk = this.fileChunks[chunkIndex];
-
-            // Update content display
-            const generatedContent = document.getElementById('generatedContent');
-            if (generatedContent) {
-                generatedContent.textContent = chunk.content;
-            }
-
-            // Update active button
-            document.querySelectorAll('.chunk-btn').forEach(btn => {
-                btn.classList.remove('active');
-                btn.setAttribute('aria-pressed', 'false');
-            });
-            const activeBtn = document.getElementById(`chunkBtn${chunkIndex}`);
-            if (activeBtn) {
-                activeBtn.classList.add('active');
-                activeBtn.setAttribute('aria-pressed', 'true');
-            }
-
-            // Update copy button text
-            const copyBtn = document.getElementById('copyContentBtn');
-            if (copyBtn) {
-                copyBtn.textContent = `📋 Copy ${chunk.filename}`;
-            }
-
-            // Update modal header to show current chunk
-            const modalHeader = document.querySelector('#contentModal .modal-header h2');
-            if (modalHeader) {
-                modalHeader.textContent = `📄 ${chunk.filename} (${chunkIndex + 1}/${this.fileChunks.length})`;
-            }
-
-            // Update chunk info
-            this.updateChunkInfo();
-
-            // Scroll to top
-            contentDisplayModal.scrollTop = 0;
-
-            // Remove loading state
-            contentDisplayModal.classList.remove('chunk-loading');
-
-            console.log(`📦 Switched to chunk ${chunkIndex + 1}/${this.fileChunks.length}: ${chunk.filename}`);
-        }, 150);
-    }
-
-    async copyAllChunks() {
+    async openNativeFileBrowser() {
         try {
-            let allContent = '';
-            this.fileChunks.forEach((chunk, index) => {
-                allContent += `=== ${chunk.filename} (${index + 1}/${this.fileChunks.length}) ===\n\n`;
-                allContent += chunk.content;
-                if (index < this.fileChunks.length - 1) {
-                    allContent += '\n\n' + '='.repeat(80) + '\n\n';
+            const response = await fetch('/api/browse-directory', {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (result.success) {
+                return result.path;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error opening file browser:', error);
+            return null;
+        }
+    }
+
+    createFileItem(file, parentPath) {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.dataset.path = file.path;
+    item.dataset.type = file.type;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'file-item-wrapper';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'checkbox';
+    checkbox.checked = this.selectedFiles.has(file.path);
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = file.name;
+
+    if (file.type === 'directory') {
+        const arrow = document.createElement('span');
+        arrow.className = 'directory-arrow';
+        arrow.textContent = this.expandedDirectories.has(file.path) ? '➡️' : '🗂️'; // Use 🗂️ for directories, ➡️ for expanded
+        wrapper.appendChild(arrow);
+    } else {
+        const fileIcon = document.createElement('span');
+        fileIcon.className = 'file-icon';
+
+        // Determine icon based on file extension or project type
+        const extension = file.name.split('.').pop().toLowerCase();
+        let isProjectFile = false;
+
+        if (this.dockerFiles.some(dockerFile => dockerFile.path === file.path)) {
+            fileIcon.textContent = '🐳'; // Docker file
+            fileIcon.title = 'Docker file';
+        } else if (this.djangoFiles.some(djangoFile => djangoFile.path === file.path)) {
+            fileIcon.textContent = '🐍'; // Django file
+            fileIcon.title = 'Django file';
+            isProjectFile = true;
+        } else if (this.reactFiles.some(reactFile => reactFile.path === file.path)) {
+            fileIcon.textContent = '⚛️'; // React file
+            fileIcon.title = 'React file';
+            isProjectFile = true;
+        } else if (extension === 'py') {
+            fileIcon.textContent = '🐍'; // Python file
+            fileIcon.title = 'Python file';
+        } else if (['js', 'jsx', 'ts', 'tsx'].includes(extension)) {
+            fileIcon.textContent = '⚛️'; // JavaScript/TypeScript file
+            fileIcon.title = 'JavaScript/TypeScript file';
+        } else if (extension === 'json') {
+            fileIcon.textContent = '📋'; // JSON file
+            fileIcon.title = 'JSON configuration file';
+        } else if (extension === 'md') {
+            fileIcon.textContent = '📝'; // Markdown file
+            fileIcon.title = 'Markdown documentation';
+        } else if (extension === 'txt') {
+            fileIcon.textContent = '📄'; // Text file
+            fileIcon.title = 'Text file';
+        } else {
+            fileIcon.textContent = '📎'; // Generic file
+            fileIcon.title = 'Other file type';
+        }
+
+        // Highlight critical project files (e.g., settings.py, package.json)
+        if ((file.name === 'settings.py' && this.settings.projectTypes?.django) ||
+            (file.name === 'package.json' && this.settings.projectTypes?.react)) {
+            fileIcon.textContent = '🛠️';
+            fileIcon.title = 'Critical project file';
+        }
+
+        wrapper.appendChild(fileIcon);
+    }
+
+    wrapper.appendChild(name);
+
+    if (file.type === 'file') {
+        const size = document.createElement('span');
+        size.className = 'size';
+        size.textContent = this.formatFileSize(file.size);
+        wrapper.appendChild(size);
+    }
+
+    item.appendChild(checkbox);
+    item.appendChild(wrapper);
+
+    checkbox.addEventListener('change', async () => {
+        if (checkbox.checked) {
+            this.selectedFiles.add(file.path);
+            if (file.type === 'file') {
+                await this.analyzeFileDependencies(file);
+            } else {
+                await this.selectDirectoryContents(file.path);
+            }
+        } else {
+            this.selectedFiles.delete(file.path);
+            if (file.type === 'file') {
+                await this.removeDependencies(file.path);
+            } else {
+                await this.deselectDirectoryContents(file.path);
+            }
+        }
+        this.updateValidateButton();
+    });
+
+    wrapper.addEventListener('click', async (e) => {
+        if (file.type === 'directory') {
+            await this.toggleDirectory(item, file.path);
+        } else {
+            await this.loadFileContent(file);
+        }
+        e.stopPropagation();
+    });
+
+    return item;
+}
+
+    async loadDirectory(dirPath) {
+        try {
+            const encodedPath = encodeURIComponent(dirPath.substring(1));
+            const response = await fetch(`/api/directory/${encodedPath}`);
+            const files = await response.json();
+
+            const tree = document.getElementById('fileTree');
+            tree.innerHTML = '';
+
+            files.forEach(file => {
+                const item = this.createFileItem(file, dirPath);
+                tree.appendChild(item);
+
+                if (file.type === 'directory' && this.expandedDirectories.has(file.path)) {
+                    this.toggleDirectory(item, file.path);
                 }
             });
 
-            await navigator.clipboard.writeText(allContent);
-
-            const copyAllBtn = document.getElementById('copyAllChunksBtn');
-            const originalText = copyAllBtn.textContent;
-
-            copyAllBtn.textContent = '✅ All Chunks Copied!';
-            copyAllBtn.classList.add('copied');
-
-            setTimeout(() => {
-                copyAllBtn.textContent = originalText;
-                copyAllBtn.classList.remove('copied');
-            }, 3000);
-
-        } catch (error) {
-            console.error('Failed to copy all chunks:', error);
-            alert('❌ Failed to copy all chunks. Try copying individual chunks instead.');
-        }
-    }
-
-    downloadAllChunks() {
-        const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-
-        this.fileChunks.forEach((chunk, index) => {
-            setTimeout(() => {
-                const filename = `${chunk.filename}_${timestamp}.txt`;
-                const blob = new Blob([chunk.content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.style.display = 'none';
-
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-
-                URL.revokeObjectURL(url);
-            }, index * 500); // Stagger downloads by 500ms
-        });
-
-        alert(`📥 Downloading ${this.fileChunks.length} chunk files...`);
-    }
-
-    updateChunkInfo() {
-        const chunkInfoItem = document.getElementById('chunkInfoItem');
-        const currentChunkInfo = document.getElementById('currentChunkInfo');
-
-        if (this.fileChunks.length > 1) {
-            chunkInfoItem.style.display = 'flex';
-            currentChunkInfo.textContent = `${this.currentChunkIndex + 1}/${this.fileChunks.length}`;
-        } else {
-            chunkInfoItem.style.display = 'none';
-        }
-    }
-
-    handleChunkKeyNavigation(event) {
-        if (!document.getElementById('contentModal').classList.contains('hidden')) {
-            if (event.key === 'ArrowLeft' && this.currentChunkIndex > 0) {
-                event.preventDefault();
-                this.switchToChunk(this.currentChunkIndex - 1);
-            } else if (event.key === 'ArrowRight' && this.currentChunkIndex < this.fileChunks.length - 1) {
-                event.preventDefault();
-                this.switchToChunk(this.currentChunkIndex + 1);
-            } else if (event.key === 'Home') {
-                event.preventDefault();
-                this.switchToChunk(0);
-            } else if (event.key === 'End') {
-                event.preventDefault();
-                this.switchToChunk(this.fileChunks.length - 1);
-            }
-        }
-    }
-
-    // Project File Scanning
-    async scanForProjectFiles() {
-        if (!this.settings.defaultPath) {
-            console.log('⚠️ No default path set, skipping project file scan');
-            return;
-        }
-
-        try {
-            let scannedFiles = [];
-
-            if (this.settings.projectTypes.django) {
-                console.log('🐍 Scanning for Django files...');
-                this.djangoFiles = await this.findProjectFiles('django', this.settings.defaultPath);
-                scannedFiles.push(...this.djangoFiles);
-                console.log(`🐍 Found ${this.djangoFiles.length} Django files`);
-            }
-
-            if (this.settings.projectTypes.react) {
-                console.log('⚛️ Scanning for React files...');
-                this.reactFiles = await this.findProjectFiles('react', this.settings.defaultPath);
-                scannedFiles.push(...this.reactFiles);
-                console.log(`⚛️ Found ${this.reactFiles.length} React files`);
-            }
-
-            scannedFiles.forEach(projectFile => {
-                this.selectedFiles.add(projectFile.path);
-            });
-
-            this.updateValidateButton();
+            this.updateBreadcrumb(dirPath);
             this.updateVisibleCheckboxes();
-
-        } catch (error) {
-            console.error('Error scanning for project files:', error);
-        }
-    }
-
-    async findProjectFiles(projectType, startPath) {
-        const response = await fetch('/api/project-files', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                projectType: projectType,
-                startPath: startPath
-            })
-        });
-
-        if (response.ok) {
-            return await response.json();
-        } else {
-            console.error(`Error finding ${projectType} files:`, response.statusText);
-            return [];
-        }
-    }
-
-    // Directory and File Operations
-    async directoryExists(path) {
-        try {
-            let apiPath;
-            if (path.startsWith('/')) {
-                apiPath = path.substring(1);
-            } else if (path.match(/^[A-Za-z]:/)) {
-                apiPath = path;
-            } else {
-                apiPath = path;
-            }
-
-            const encodedPath = encodeURIComponent(apiPath);
-            const response = await fetch(`/api/exists/${encodedPath}`);
-            const result = await response.json();
-            return result.exists && result.isDirectory;
-        } catch (error) {
-            console.error('Error checking directory:', error);
-            return false;
-        }
-    }
-
-    async getCurrentWorkingDirectory() {
-        try {
-            const response = await fetch('/api/cwd');
-            const data = await response.json();
-            return data.cwd;
-        } catch (error) {
-            console.error('Error getting current directory:', error);
-            return '/';
-        }
-    }
-
-    async loadDirectory(path) {
-        try {
-            const tree = document.getElementById('fileTree');
-            tree.innerHTML = '<div class="loading">🔄 Loading files...</div>';
-
-            const encodedPath = encodeURIComponent(path.substring(1));
-            const response = await fetch(`/api/directory/${encodedPath}`);
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const files = await response.json();
-            this.renderFileTree(files, path);
-            this.updateBreadcrumb(path);
-            this.currentPath = path;
         } catch (error) {
             console.error('Error loading directory:', error);
             const tree = document.getElementById('fileTree');
@@ -449,485 +380,141 @@ class FileExplorer {
         }
     }
 
-    async changeRootDirectory() {
-        const newPath = await this.openNativeFileBrowser();
-        if (newPath && newPath !== this.currentPath) {
-            try {
-                await this.loadDirectory(newPath);
-                document.getElementById('currentPath').textContent = newPath;
-                this.selectedFiles.clear();
-                this.fileContents.clear();
-                this.expandedDirectories.clear();
-                this.fileDependencies.clear();
-                this.dependencyOwners.clear();
-                this.currentPath = newPath;
-
-                if (this.settings.includeDockerFiles) {
-                    await this.scanForDockerFiles();
-                }
-
-                this.updateValidateButton();
-            } catch (error) {
-                alert(`Error accessing directory: ${error.message}`);
-            }
-        }
-    }
-
-    async openNativeFileBrowser() {
+    async scanForProjectFiles() {
         try {
-            const response = await fetch('/api/browse-directory', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            const projectTypes = [];
+            if (this.settings.projectTypes?.django) projectTypes.push('django');
+            if (this.settings.projectTypes?.react) projectTypes.push('react');
+
+            for (const projectType of projectTypes) {
+                const response = await fetch('/api/project-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ projectType, startPath: this.currentPath })
+                });
+
+                if (response.ok) {
+                    const files = await response.json();
+                    console.log(`🔧 Found ${files.length} ${projectType} files`);
+
+                    if (projectType === 'django') {
+                        this.djangoFiles = files;
+                        files.forEach(file => this.selectedFiles.add(file.path));
+                    } else if (projectType === 'react') {
+                        this.reactFiles = files;
+                        files.forEach(file => this.selectedFiles.add(file.path));
+                    }
                 }
-            });
-
-            const result = await response.json();
-
-            if (result.success && result.path) {
-                return result.path;
-            } else {
-                return null;
             }
+
+            this.updateValidateButton();
+            this.updateVisibleCheckboxes();
         } catch (error) {
-            console.error('Error opening file browser:', error);
-            return null;
-        }
-    }
-
-    // File Tree Rendering
-    renderFileTree(files, basePath) {
-        const tree = document.getElementById('fileTree');
-        tree.innerHTML = '';
-
-        if (files.length === 0) {
-            tree.innerHTML = '<div class="empty-state">📂 No files found</div>';
-            return;
-        }
-
-        files.forEach(file => {
-            const item = this.createFileItem(file, basePath);
-            tree.appendChild(item);
-        });
-    }
-
-    createFileItem(file, basePath) {
-        const item = document.createElement('div');
-        item.className = 'file-item';
-        item.dataset.path = file.path;
-        item.dataset.type = file.type;
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'checkbox';
-        checkbox.checked = this.selectedFiles.has(file.path);
-        checkbox.addEventListener('change', (e) => {
-            this.handleManualFileSelection(file, e.target.checked);
-            this.handleFileSelection(file, e.target.checked);
-        });
-
-        const icon = document.createElement('div');
-        icon.className = 'file-icon';
-
-        if (file.type === 'directory') {
-            const arrow = document.createElement('div');
-            arrow.className = 'directory-arrow';
-            if (this.expandedDirectories.has(file.path)) {
-                arrow.classList.add('expanded');
-            }
-            item.appendChild(arrow);
-            icon.innerHTML = '📁';
-        } else {
-            icon.innerHTML = this.getFileIcon(file.name);
-        }
-
-        const name = document.createElement('span');
-        name.className = 'file-name';
-        name.textContent = file.name;
-
-        const size = document.createElement('span');
-        size.className = 'file-size';
-        if (file.type === 'file') {
-            size.textContent = this.formatFileSize(file.size);
-        }
-
-        item.appendChild(checkbox);
-        item.appendChild(icon);
-        item.appendChild(name);
-        if (file.type === 'file') {
-            item.appendChild(size);
-        }
-
-        // Add indicators for special file types
-        this.addFileIndicators(item, file);
-
-        // Add click handlers
-        if (file.type === 'directory') {
-            name.addEventListener('click', () => this.loadDirectory(file.path));
-            item.querySelector('.directory-arrow').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleDirectory(item, file.path);
-            });
-        } else {
-            name.addEventListener('click', () => this.loadFileContent(file));
-        }
-
-        return item;
-    }
-
-    addFileIndicators(item, file) {
-        // Add Docker indicator
-        if (this.dockerFiles.some(dockerFile => dockerFile.path === file.path)) {
-            const dockerIndicator = document.createElement('span');
-            dockerIndicator.className = 'dependency-indicator';
-            dockerIndicator.textContent = '🐳';
-            dockerIndicator.title = 'Docker file (auto-included)';
-            dockerIndicator.style.background = '#0066cc';
-            item.appendChild(dockerIndicator);
-        }
-
-        // Add Django indicator
-        if (this.djangoFiles.some(djangoFile => djangoFile.path === file.path)) {
-            const djangoIndicator = document.createElement('span');
-            djangoIndicator.className = 'dependency-indicator';
-            djangoIndicator.textContent = '🐍';
-            djangoIndicator.title = 'Django file (auto-included)';
-            djangoIndicator.style.background = '#092e20';
-            djangoIndicator.style.color = '#7fb069';
-            item.appendChild(djangoIndicator);
-        }
-
-        // Add React indicator
-        if (this.reactFiles.some(reactFile => reactFile.path === file.path)) {
-            const reactIndicator = document.createElement('span');
-            reactIndicator.className = 'dependency-indicator';
-            reactIndicator.textContent = '⚛️';
-            reactIndicator.title = 'React file (auto-included)';
-            reactIndicator.style.background = '#61dafb';
-            reactIndicator.style.color = '#000';
-            item.appendChild(reactIndicator);
-        }
-    }
-
-    getFileIcon(filename) {
-        const ext = filename.split('.').pop()?.toLowerCase();
-        const iconMap = {
-            'js': '🟨', 'jsx': '🟨', 'ts': '🔷', 'tsx': '🔷',
-            'py': '🐍', 'json': '⚙️', 'md': '📝', 'css': '🎨',
-            'scss': '🎨', 'html': '🌐', 'txt': '📃', 'yml': '📄',
-            'yaml': '📄', 'xml': '📄', 'svg': '🖼️', 'png': '🖼️',
-            'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'pdf': '📕',
-            'zip': '📦', 'tar': '📦', 'gz': '📦'
-        };
-
-        // Special handling for Docker files
-        if (filename.toLowerCase().includes('dockerfile') ||
-            filename === 'docker-compose.yml' ||
-            filename === 'docker-compose.yaml' ||
-            filename === '.dockerignore') {
-            return '🐳';
-        }
-
-        return iconMap[ext] || '📄';
-    }
-
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
-
-    // File Selection and Dependencies
-    async handleFileSelection(file, isSelected) {
-        if (isSelected) {
-            this.selectedFiles.add(file.path);
-            if (file.type === 'file') {
-                await this.analyzeFileDependencies(file);
-            } else if (file.type === 'directory') {
-                await this.selectDirectoryContents(file.path);
-            }
-        } else {
-            this.selectedFiles.delete(file.path);
-
-            const wasDockerFile = this.dockerFiles.some(dockerFile => dockerFile.path === file.path);
-            const wasDjangoFile = this.djangoFiles.some(djangoFile => djangoFile.path === file.path);
-            const wasReactFile = this.reactFiles.some(reactFile => reactFile.path === file.path);
-
-            if (wasDockerFile || wasDjangoFile || wasReactFile) {
-                let fileType = '';
-                if (wasDockerFile) fileType = 'Docker';
-                if (wasDjangoFile) fileType = 'Django';
-                if (wasReactFile) fileType = 'React';
-
-                const confirmDeselect = confirm(
-                    `This file was auto-selected as a ${fileType} file. ` +
-                    `Deselecting it may affect your project analysis. ` +
-                    `Continue with deselection?`
-                );
-
-                if (!confirmDeselect) {
-                    this.selectedFiles.add(file.path);
-                    this.updateVisibleCheckboxes();
-                    return;
-                }
-            }
-
-            if (file.type === 'file') {
-                await this.removeDependencies(file.path);
-            } else if (file.type === 'directory') {
-                await this.deselectDirectoryContents(file.path);
-            }
-        }
-
-        this.updateValidateButton();
-        this.updateVisibleCheckboxes();
-    }
-
-    handleManualFileSelection(file, isSelected) {
-        if (isSelected) {
-            const fileItem = document.querySelector(`[data-path="${file.path}"]`);
-            if (fileItem) {
-                const indicator = fileItem.querySelector('.dependency-indicator');
-                if (indicator) {
-                    indicator.remove();
-                }
-            }
+            console.error('Error scanning for project files:', error);
         }
     }
 
     async analyzeFileDependencies(file) {
-    try {
-        console.log('🔍 Analyzing dependencies for:', file.path);
-        const content = await this.getFileContent(file.path);
-        if (!content || content.isBinary) {
-            console.log('❌ Cannot analyze dependencies - file is binary or unreadable');
-            return;
-        }
+        try {
+            const content = await this.getFileContent(file.path);
+            if (!content || content.isBinary) return;
 
-        const dependencies = this.extractDependencies(content.content, file.path);
-        console.log('🔗 Found dependencies:', dependencies);
+            const dependencies = this.parseDependencies(content.content, file.path);
+            if (dependencies.length === 0) return;
 
-        const allResolvedPaths = [];
-        for (const dependency of dependencies) {
-            console.log('⚡ Resolving dependency:', dependency);
-            const resolvedPaths = await this.resolvePath(file.path, dependency);
-            if (resolvedPaths && resolvedPaths.length > 0) {
-                console.log('✅ Resolved to:', resolvedPaths);
-                allResolvedPaths.push(...resolvedPaths);
-            } else {
-                console.log('❌ Could not resolve:', dependency.relativePath);
-            }
-        }
+            this.fileDependencies.set(file.path, new Set());
 
-        // Remove duplicates
-        const uniqueResolvedPaths = [...new Set(allResolvedPaths)];
-        this.fileDependencies.set(file.path, new Set(uniqueResolvedPaths));
+            for (const dep of dependencies) {
+                const resolvedPaths = await this.resolvePath(file.path, dep);
+                resolvedPaths.forEach(depPath => {
+                    this.fileDependencies.get(file.path).add(depPath);
 
-        for (const depPath of uniqueResolvedPaths) {
-            if (!this.selectedFiles.has(depPath)) {
-                this.selectedFiles.add(depPath);
+                    if (!this.dependencyOwners.has(depPath)) {
+                        this.dependencyOwners.set(depPath, new Set());
+                    }
+                    this.dependencyOwners.get(depPath).add(file.path);
 
-                if (!this.dependencyOwners.has(depPath)) {
-                    this.dependencyOwners.set(depPath, new Set());
-                }
-                this.dependencyOwners.get(depPath).add(file.path);
+                    if (!this.selectedFiles.has(depPath)) {
+                        this.selectedFiles.add(depPath);
 
-                const checkbox = document.querySelector(`[data-path="${depPath}"] .checkbox`);
-                if (checkbox) {
-                    checkbox.checked = true;
-                }
-
-                const fileItem = document.querySelector(`[data-path="${depPath}"]`);
-                if (fileItem && !fileItem.querySelector('.dependency-indicator')) {
-                    const indicator = document.createElement('span');
-                    indicator.className = 'dependency-indicator';
-                    indicator.textContent = 'AUTO';
-                    indicator.title = 'Automatically selected as dependency';
-                    fileItem.appendChild(indicator);
-                }
-            } else {
-                if (!this.dependencyOwners.has(depPath)) {
-                    this.dependencyOwners.set(depPath, new Set());
-                }
-                this.dependencyOwners.get(depPath).add(file.path);
-            }
-        }
-
-        this.updateValidateButton();
-    } catch (error) {
-        console.error('❌ Error analyzing dependencies:', error);
-    }
-}
-
-    extractDependencies(content, currentFilePath) {
-    const dependencies = [];
-
-    // Enhanced import regex patterns that capture both the import specifiers and the path
-    const importRegexes = [
-        // Named imports: import { ComponentName, AnotherComponent } from 'path'
-        /import\s*\{\s*([^}]+)\s*\}\s*from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
-        // Default imports: import ComponentName from 'path'
-        /import\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
-        // Namespace imports: import * as Name from 'path'
-        /import\s+\*\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
-        // Side effect imports: import 'path'
-        /import\s+['"`](\.\.?\/[^'"`]+)['"`]/g,
-        // Dynamic imports: import('path')
-        /import\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
-        // Require statements: require('path')
-        /require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g,
-        // Assignment with require: const name = require('path')
-        /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*require\(['"`](\.\.?\/[^'"`]+)['"`]\)/g
-    ];
-
-    importRegexes.forEach((regex, regexIndex) => {
-        let match;
-        while ((match = regex.exec(content)) !== null) {
-            let relativePath, importedNames = [];
-
-            // Different regex patterns have different capture groups
-            if (regexIndex === 0) {
-                // Named imports: extract both names and path
-                const namesString = match[1];
-                relativePath = match[2];
-                // Parse the named imports (handle aliases with 'as')
-                importedNames = namesString.split(',').map(name => {
-                    const cleanName = name.trim();
-                    // Handle 'ComponentName as Alias' syntax
-                    const asMatch = cleanName.match(/^([^as]+)\s+as\s+(.+)$/);
-                    return asMatch ? asMatch[1].trim() : cleanName;
+                        const fileItem = document.querySelector(`[data-path="${depPath}"]`);
+                        if (fileItem) {
+                            const indicator = document.createElement('span');
+                            indicator.className = 'dependency-indicator';
+                            indicator.textContent = '🔗';
+                            indicator.title = `Dependency of ${file.path}`;
+                            fileItem.querySelector('.file-item-wrapper').appendChild(indicator);
+                        }
+                    }
                 });
-            } else if (regexIndex === 1) {
-                // Default imports
-                importedNames = [match[1]];
-                relativePath = match[2];
-            } else if (regexIndex === 2) {
-                // Namespace imports
-                importedNames = [match[1]];
-                relativePath = match[2];
-            } else if (regexIndex === 3 || regexIndex === 4 || regexIndex === 5) {
-                // Side effect imports, dynamic imports, basic require
-                relativePath = match[1];
-                importedNames = [];
-            } else if (regexIndex === 6) {
-                // Assignment with require
-                importedNames = [match[1]];
-                relativePath = match[2];
             }
 
-            dependencies.push({
-                relativePath,
-                importedNames,
-                originalStatement: match[0]
-            });
+            this.updateVisibleCheckboxes();
+        } catch (error) {
+            console.error('Error analyzing dependencies:', error);
         }
-        regex.lastIndex = 0;
-    });
+    }
 
-    return dependencies;
-}
+    parseDependencies(content, filePath) {
+        const dependencies = [];
+        const regexes = [
+            // ES Module imports
+            /import\s+{([^}]+)}\s+from\s+['"]([^'"]+)['"]/g,
+            /import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g,
+            /import\s+['"]([^'"]+)['"]/g,
+            // Dynamic imports
+            /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+            // CommonJS require
+            /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+            // Assignment with require
+            /const\s+{([^}]+)}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+        ];
+
+        regexes.forEach((regex, regexIndex) => {
+            let match;
+            let importedNames = [];
+            let relativePath;
+
+            while ((match = regex.exec(content)) !== null) {
+                if (regexIndex === 0) {
+                    importedNames = match[1].split(',').map(name => name.trim());
+                    relativePath = match[2];
+                } else if (regexIndex === 1) {
+                    importedNames = [match[1]];
+                    relativePath = match[2];
+                } else if (regexIndex === 2 || regexIndex === 3 || regexIndex === 4) {
+                    relativePath = match[1];
+                    importedNames = [];
+                } else if (regexIndex === 5) {
+                    importedNames = [match[1]];
+                    relativePath = match[2];
+                }
+
+                dependencies.push({
+                    relativePath,
+                    importedNames,
+                    originalStatement: match[0]
+                });
+            }
+            regex.lastIndex = 0;
+        });
+
+        return dependencies;
+    }
 
     async resolvePath(currentPath, dependencyInfo) {
-    try {
-        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
-        const { relativePath, importedNames } = dependencyInfo;
+        try {
+            const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
+            const { relativePath, importedNames } = dependencyInfo;
 
-        let resolvedPath;
+            let resolvedPath;
 
-        // Basic path resolution
-        if (relativePath.startsWith('./')) {
-            resolvedPath = currentDir + '/' + relativePath.substring(2);
-        } else if (relativePath.startsWith('../')) {
-            let pathParts = currentDir.split('/');
-            let relativeParts = relativePath.split('/');
-
-            for (let part of relativeParts) {
-                if (part === '..') {
-                    pathParts.pop();
-                } else if (part !== '.') {
-                    pathParts.push(part);
-                }
-            }
-            resolvedPath = pathParts.join('/');
-        } else {
-            resolvedPath = currentDir + '/' + relativePath;
-        }
-
-        // Helper function to check if a file exists
-        const checkFileExists = async (testPath) => {
-            try {
-                const pathForAPI = testPath.startsWith('/') ? testPath.substring(1) : testPath;
-                const encodedPath = encodeURIComponent(pathForAPI);
-                const existsResponse = await fetch(`/api/exists/${encodedPath}`);
-                const exists = await existsResponse.json();
-
-                if (exists.exists && exists.isFile) {
-                    return testPath;
-                }
-                return null;
-            } catch (error) {
-                return null;
-            }
-        };
-
-        // Helper function to parse index.js and find re-exports
-        const parseIndexFile = async (indexPath) => {
-            try {
-                const content = await this.getFileContent(indexPath);
-                if (!content || content.isBinary) return [];
-
-                const reExports = [];
-                const lines = content.content.split('\n');
-
-                for (const line of lines) {
-                    // Match: export { default as ComponentName } from './path/to/Component';
-                    const defaultAsMatch = line.match(/export\s*\{\s*default\s+as\s+(\w+)\s*\}\s*from\s*['"`]([^'"`]+)['"`]/);
-                    if (defaultAsMatch) {
-                        reExports.push({
-                            exportedName: defaultAsMatch[1],
-                            relativePath: defaultAsMatch[2]
-                        });
-                        continue;
-                    }
-
-                    // Match: export { ComponentName } from './path/to/Component';
-                    const namedExportMatch = line.match(/export\s*\{\s*([^}]+)\s*\}\s*from\s*['"`]([^'"`]+)['"`]/);
-                    if (namedExportMatch) {
-                        const exportedNames = namedExportMatch[1].split(',').map(name => name.trim());
-                        exportedNames.forEach(name => {
-                            reExports.push({
-                                exportedName: name,
-                                relativePath: namedExportMatch[2]
-                            });
-                        });
-                        continue;
-                    }
-
-                    // Match: export * from './path/to/Component';
-                    const starExportMatch = line.match(/export\s*\*\s*from\s*['"`]([^'"`]+)['"`]/);
-                    if (starExportMatch) {
-                        reExports.push({
-                            exportedName: '*',
-                            relativePath: starExportMatch[1]
-                        });
-                    }
-                }
-
-                return reExports;
-            } catch (error) {
-                console.error('Error parsing index file:', error);
-                return [];
-            }
-        };
-
-        // Helper function to resolve a path relative to the index file
-        const resolveRelativeToIndex = (indexDir, relativePath) => {
             if (relativePath.startsWith('./')) {
-                return indexDir + '/' + relativePath.substring(2);
+                resolvedPath = currentDir + '/' + relativePath.substring(2);
             } else if (relativePath.startsWith('../')) {
-                let pathParts = indexDir.split('/');
+                let pathParts = currentDir.split('/');
                 let relativeParts = relativePath.split('/');
 
                 for (let part of relativeParts) {
@@ -937,68 +524,143 @@ class FileExplorer {
                         pathParts.push(part);
                     }
                 }
-                return pathParts.join('/');
+                resolvedPath = pathParts.join('/');
             } else {
-                return indexDir + '/' + relativePath;
+                resolvedPath = currentDir + '/' + relativePath;
             }
-        };
 
-        const resolvedPaths = new Set();
+            const checkFileExists = async (testPath) => {
+                try {
+                    const pathForAPI = testPath.startsWith('/') ? testPath.substring(1) : testPath;
+                    const encodedPath = encodeURIComponent(pathForAPI);
+                    const existsResponse = await fetch(`/api/exists/${encodedPath}`);
+                    const exists = await existsResponse.json();
 
-        // 1. Try the exact path as specified
-        let foundPath = await checkFileExists(resolvedPath);
-        if (foundPath) {
-            resolvedPaths.add(foundPath);
-        }
-
-        // 2. Try with common extensions if no extension is present
-        const hasNoExtension = (str) => {
-            const lastSlash = str.lastIndexOf('/');
-            const lastDot = str.lastIndexOf('.');
-            return lastDot === -1 || lastDot < lastSlash;
-        };
-
-        if (hasNoExtension(relativePath)) {
-            const extensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
-
-            // Try direct file with extensions
-            for (const ext of extensions) {
-                const pathWithExt = resolvedPath + ext;
-                foundPath = await checkFileExists(pathWithExt);
-                if (foundPath) {
-                    resolvedPaths.add(foundPath);
+                    if (exists.exists && exists.isFile) {
+                        return testPath;
+                    }
+                    return null;
+                } catch (error) {
+                    return null;
                 }
+            };
+
+            const parseIndexFile = async (indexPath) => {
+                try {
+                    const content = await this.getFileContent(indexPath);
+                    if (!content || content.isBinary) return [];
+
+                    const reExports = [];
+                    const lines = content.content.split('\n');
+
+                    for (const line of lines) {
+                        const defaultAsMatch = line.match(/export\s*\{\s*default\s+as\s+(\w+)\s*\}\s*from\s*['"`]([^'"`]+)['"`]/);
+                        if (defaultAsMatch) {
+                            reExports.push({
+                                exportedName: defaultAsMatch[1],
+                                stewardsPath: defaultAsMatch[2]
+                            });
+                            continue;
+                        }
+
+                        const namedExportMatch = line.match(/export\s*\{\s*([^}]+)\s*\}\s*from\s*['"`]([^'"`]+)['"`]/);
+                        if (namedExportMatch) {
+                            const exportedNames = namedExportMatch[1].split(',').map(name => name.trim());
+                            exportedNames.forEach(name => {
+                                reExports.push({
+                                    exportedName: name,
+                                    relativePath: namedExportMatch[2]
+                                });
+                            });
+                            continue;
+                        }
+
+                        const starExportMatch = line.match(/export\s*\*\s*from\s*['"`]([^'"`]+)['"`]/);
+                        if (starExportMatch) {
+                            reExports.push({
+                                exportedName: '*',
+                                relativePath: starExportMatch[1]
+                            });
+                        }
+                    }
+
+                    return reExports;
+                } catch (error) {
+                    console.error('Error parsing index file:', error);
+                    return [];
+                }
+            };
+
+            const resolveRelativeToIndex = (indexDir, relativePath) => {
+                if (relativePath.startsWith('./')) {
+                    return indexDir + '/' + relativePath.substring(2);
+                } else if (relativePath.startsWith('../')) {
+                    let pathParts = indexDir.split('/');
+                    let relativeParts = relativePath.split('/');
+
+                    for (let part of relativeParts) {
+                        if (part === '..') {
+                            pathParts.pop();
+                        } else if (part !== '.') {
+                            pathParts.push(part);
+                        }
+                    }
+                    return pathParts.join('/');
+                } else {
+                    return indexDir + '/' + relativePath;
+                }
+            };
+
+            const resolvedPaths = new Set();
+
+            let foundPath = await checkFileExists(resolvedPath);
+            if (foundPath) {
+                resolvedPaths.add(foundPath);
             }
 
-            // Try index files in the directory
-            for (const ext of extensions) {
-                const indexPath = resolvedPath + '/index' + ext;
-                foundPath = await checkFileExists(indexPath);
-                if (foundPath) {
-                    resolvedPaths.add(foundPath);
+            const hasNoExtension = (str) => {
+                const lastSlash = str.lastIndexOf('/');
+                const lastDot = str.lastIndexOf('.');
+                return lastDot === -1 || lastDot < lastSlash;
+            };
 
-                    // NEW: Parse the index file to find re-exports
-                    if (importedNames && importedNames.length > 0) {
-                        const reExports = await parseIndexFile(foundPath);
-                        const indexDir = foundPath.substring(0, foundPath.lastIndexOf('/'));
+            if (hasNoExtension(relativePath)) {
+                const extensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
 
-                        for (const importedName of importedNames) {
-                            if (importedName) {
-                                // Find matching re-export
-                                const matchingExport = reExports.find(reExport =>
-                                    reExport.exportedName === importedName || reExport.exportedName === '*'
-                                );
+                for (const ext of extensions) {
+                    const pathWithExt = resolvedPath + ext;
+                    foundPath = await checkFileExists(pathWithExt);
+                    if (foundPath) {
+                        resolvedPaths.add(foundPath);
+                    }
+                }
 
-                                if (matchingExport) {
-                                    const reExportPath = resolveRelativeToIndex(indexDir, matchingExport.relativePath);
+                for (const ext of extensions) {
+                    const indexPath = resolvedPath + '/index' + ext;
+                    foundPath = await checkFileExists(indexPath);
+                    if (foundPath) {
+                        resolvedPaths.add(foundPath);
 
-                                    // Try the re-export path with extensions
-                                    for (const ext of extensions) {
-                                        const reExportWithExt = reExportPath + ext;
-                                        const reExportFound = await checkFileExists(reExportWithExt);
-                                        if (reExportFound) {
-                                            resolvedPaths.add(reExportFound);
-                                            console.log(`✅ Found re-exported component: ${importedName} at ${reExportFound} via index file ${foundPath}`);
+                        if (importedNames && importedNames.length > 0) {
+                            const reExports = await parseIndexFile(foundPath);
+                            const indexDir = foundPath.substring(0, foundPath.lastIndexOf('/'));
+
+                            for (const importedName of importedNames) {
+                                if (importedName) {
+                                    const matchingExport = reExports.find(reExport =>
+                                        reExport.exportedName === importedName || reExport.exportedName === '*'
+                                    );
+
+                                    if (matchingExport) {
+                                        const reExportPath = resolveRelativeToIndex(indexDir, matchingExport.relativePath);
+
+                                        for (const ext of extensions) {
+                                            const reExportWithExt = reExportPath + ext;
+                                            const reExportFound = await checkFileExists(reExportWithExt);
+                                            if (reExportFound) {
+                                                resolvedPaths.add(reExportFound);
+                                                console.log(`✅ Found re-exported component: ${importedName} at ${reExportFound} via index file ${foundPath}`);
+                                            }
                                         }
                                     }
                                 }
@@ -1006,34 +668,30 @@ class FileExplorer {
                         }
                     }
                 }
-            }
 
-            // 3. Try named component files in the directory (existing logic)
-            if (importedNames && importedNames.length > 0) {
-                for (const importedName of importedNames) {
-                    if (importedName) {
-                        for (const ext of extensions) {
-                            const namedComponentPath = resolvedPath + '/' + importedName + ext;
-                            foundPath = await checkFileExists(namedComponentPath);
-                            if (foundPath) {
-                                resolvedPaths.add(foundPath);
-                                console.log(`✅ Found named component: ${importedName} at ${foundPath}`);
+                if (importedNames && importedNames.length > 0) {
+                    for (const importedName of importedNames) {
+                        if (importedName) {
+                            for (const ext of extensions) {
+                                const namedComponentPath = resolvedPath + '/' + importedName + ext;
+                                foundPath = await checkFileExists(namedComponentPath);
+                                if (foundPath) {
+                                    resolvedPaths.add(foundPath);
+                                    console.log(`✅ Found named component: ${importedName} at ${foundPath}`);
+                                }
                             }
                         }
                     }
                 }
             }
+
+            return Array.from(resolvedPaths);
+        } catch (error) {
+            console.error('❌ Error resolving path:', error);
+            return [];
         }
-
-        // Return all found paths as an array
-        return Array.from(resolvedPaths);
-    } catch (error) {
-        console.error('❌ Error resolving path:', error);
-        return [];
     }
-}
 
-    // File Content Operations
     async getFileContent(filePath) {
         if (this.fileContents.has(filePath)) {
             return this.fileContents.get(filePath);
@@ -1057,283 +715,290 @@ class FileExplorer {
     }
 
     async loadFileContent(file) {
-        try {
-            const content = await this.getFileContent(file.path);
-            const header = document.getElementById('contentHeader');
-            const fileInfo = document.getElementById('fileInfo');
-            const display = document.getElementById('contentDisplay');
+    try {
+        const content = await this.getFileContent(file.path);
+        const header = document.getElementById('contentHeader');
+        const fileInfo = document.getElementById('fileInfo');
+        const display = document.getElementById('contentDisplay');
 
-            header.firstChild.textContent = file.name;
+        // Add file-type-specific icon to header
+        let icon = '📄';
+        const extension = file.name.split('.').pop().toLowerCase();
+        if (this.dockerFiles.some(dockerFile => dockerFile.path === file.path)) {
+            icon = '🐳';
+        } else if (this.djangoFiles.some(djangoFile => djangoFile.path === file.path)) {
+            icon = '🐍';
+        } else if (this.reactFiles.some(reactFile => reactFile.path === file.path)) {
+            icon = '⚛️';
+        } else if (extension === 'py') {
+            icon = '🐍';
+        } else if (['js', 'jsx', 'ts', 'tsx'].includes(extension)) {
+            icon = '⚛️';
+        } else if (extension === 'json') {
+            icon = '📋';
+        } else if (extension === 'md') {
+            icon = '📝';
+        } else if (content && content.isBinary) {
+            icon = '🔢';
+        }
+        if (file.name === 'settings.py' || file.name === 'package.json') {
+            icon = '🛠️';
+        }
 
-            if (!content) {
-                display.innerHTML = `
-                    <div class="empty-state">
-                        <p>❌ Could not load file</p>
-                        <p style="font-size: 12px; margin-top: 8px;">File may not exist or be inaccessible</p>
-                    </div>
-                `;
-                return;
-            }
+        header.firstChild.textContent = `${icon} ${file.name}`;
 
-            if (content.isBinary) {
-                fileInfo.textContent = `Binary file (${this.formatFileSize(file.size)})`;
-                display.innerHTML = `
-                    <div class="empty-state">
-                        <p>📁 Binary file</p>
-                        <p style="font-size: 12px; margin-top: 8px;">Cannot display binary content</p>
-                    </div>
-                `;
-            } else {
-                fileInfo.textContent = `${content.lines} lines • ${this.formatFileSize(file.size)}`;
-
-                const lineNumbers = [];
-                for (let i = 1; i <= content.lines; i++) {
-                    lineNumbers.push(i);
-                }
-                const lineNumbersText = lineNumbers.join('\n');
-
-                display.innerHTML = '';
-
-                const lineNumbersDiv = document.createElement('div');
-                lineNumbersDiv.className = 'line-numbers';
-                lineNumbersDiv.textContent = lineNumbersText;
-
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'content-with-numbers';
-                contentDiv.textContent = content.content;
-
-                display.appendChild(lineNumbersDiv);
-                display.appendChild(contentDiv);
-
-                display.scrollTop = 0;
-                display.scrollLeft = 0;
-            }
-        } catch (error) {
-            console.error('Error loading file content:', error);
-            const display = document.getElementById('contentDisplay');
+        if (!content) {
             display.innerHTML = `
-                <div class="error">
-                    ❌ Error loading file: ${error.message}
+                <div class="empty-state">
+                    <p>❌ Could not load file</p>
+                    <p style="font-size: 12px; margin-top: 8px;">File may not exist or be inaccessible</p>
                 </div>
             `;
-        }
-    }
-
-    // File Generation with Chunking
-    // Updated generateFile method to use success modal
-    async generateFile() {
-    try {
-        const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
-            const item = document.querySelector(`[data-path="${path}"]`);
-            return !item || item.dataset.type === 'file';
-        });
-
-        let output = '';
-
-        // Add file collection header
-        output += 'FILE COLLECTION\n';
-        output += '='.repeat(80) + '\n\n';
-        output += `Generated: ${new Date().toISOString()}\n`;
-        output += `Total files: ${selectedFilesList.length}\n`;
-        output += `Root directory: ${this.currentPath}\n`;
-
-        const enabledProjectTypes = [];
-        if (this.settings.projectTypes.django && this.djangoFiles.length > 0) {
-            enabledProjectTypes.push(`Django (${this.djangoFiles.length} files)`);
-        }
-        if (this.settings.projectTypes.react && this.reactFiles.length > 0) {
-            enabledProjectTypes.push(`React (${this.reactFiles.length} files)`);
-        }
-        if (enabledProjectTypes.length > 0) {
-            output += `Project types detected: ${enabledProjectTypes.join(', ')}\n`;
+            return;
         }
 
-        if (this.dockerFiles.length > 0) {
-            output += `Docker files included: ${this.dockerFiles.length}\n`;
-        }
-        output += `Output saved to: output_files_selected/ directory\n`;
-        output += '\n';
+        if (content.isBinary) {
+            fileInfo.textContent = `🔢 Binary file (${this.formatFileSize(file.size)})`;
+            display.innerHTML = `
+                <div class="empty-state">
+                    <p>🔢 Binary file</p>
+                    <p style="font-size: 12px; margin-top: 8px;">Cannot display binary content</p>
+                </div>
+            `;
+        } else {
+            fileInfo.textContent = `${content.lines} lines • ${this.formatFileSize(file.size)}`;
 
-        // Collect file info for the summary
-        const fileInfoList = [];
-
-        for (const filePath of selectedFilesList.sort()) {
-            try {
-                if (typeof filePath !== 'string') {
-                    console.error('Invalid filePath type:', typeof filePath, filePath);
-                    continue;
-                }
-
-                const content = await this.getFileContent(filePath);
-                const fileName = filePath.split('/').pop();
-                const directory = filePath.substring(0, filePath.lastIndexOf('/'));
-                const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
-
-                // Add to file info list for summary
-                const displayPath = relativePath || fileName;
-                fileInfoList.push(displayPath);
-
-                output += '='.repeat(80) + '\n';
-                output += `filename: ${fileName}\n`;
-                output += `directory: ${directory}\n`;
-                output += `relative_path: ${relativePath}\n`;
-                output += `full_path: ${filePath}\n`;
-
-                const classifications = [];
-                if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
-                    classifications.push('docker');
-                }
-                if (this.djangoFiles.some(djangoFile => djangoFile.path === filePath)) {
-                    const djangoFile = this.djangoFiles.find(df => df.path === filePath);
-                    classifications.push(`django-${djangoFile.type}`);
-                }
-                if (this.reactFiles.some(reactFile => reactFile.path === filePath)) {
-                    const reactFile = this.reactFiles.find(rf => rf.path === filePath);
-                    classifications.push(`react-${reactFile.type}`);
-                }
-
-                if (classifications.length > 0) {
-                    output += `classification: ${classifications.join(', ')}\n`;
-                }
-
-                if (content && content.isBinary) {
-                    output += `type: binary\n`;
-                    output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
-                } else if (content) {
-                    output += `type: text\n`;
-                    output += `lines: ${content.lines}\n`;
-                    output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
-                }
-
-                output += '='.repeat(80) + '\n\n';
-
-                if (content && !content.isBinary) {
-                    output += content.content;
-                } else if (content && content.isBinary) {
-                    output += '// Binary file - content not included\n';
-                } else {
-                    output += '// Could not read file content\n';
-                }
-
-                output += '\n\n';
-            } catch (error) {
-                console.error(`Error processing file ${filePath}:`, error);
-                const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
-                const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
-
-                // Add to file info list even if there was an error
-                if (typeof filePath === 'string') {
-                    const fileName = filePath.split('/').pop();
-                    const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
-                    const displayPath = relativePath || fileName;
-                    fileInfoList.push(displayPath);
-                }
-
-                output += '='.repeat(80) + '\n';
-                output += `filename: ${fileName}\n`;
-                output += `directory: ${directory}\n`;
-                output += `full_path: ${filePath}\n`;
-                output += `error: ${error.message}\n`;
-                output += '='.repeat(80) + '\n\n';
-                output += '// Error reading file\n\n';
+            const lineNumbers = [];
+            for (let i = 1; i <= content.lines; i++) {
+                lineNumbers.push(i);
             }
+            const lineNumbersText = lineNumbers.join('\n');
+
+            display.innerHTML = '';
+
+            const lineNumbersDiv = document.createElement('div');
+            lineNumbersDiv.className = 'line-numbers';
+            lineNumbersDiv.textContent = lineNumbersText;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'content-with-numbers';
+            contentDiv.textContent = content.content;
+
+            display.appendChild(lineNumbersDiv);
+            display.appendChild(contentDiv);
+
+            display.scrollTop = 0;
+            display.scrollLeft = 0;
         }
-
-        // Add final instructions only for the last (or only) chunk
-        output += '\n' + '='.repeat(80) + '\n\n';
-        output += 'DONE PASTING\n\n';
-
-        // Add file summary line with paths
-        if (fileInfoList.length > 0) {
-            output += `I just gave you ${fileInfoList.length} files that are: ${fileInfoList.join(', ')}\n\n`;
-        }
-
-        output += 'Now here are your instructions:\n\n';
-
-        // Add custom prompt if provided
-        if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
-            output += this.settings.customPrompt.trim() + '\n';
-        } else {
-            output += 'Please analyze the provided project files and provide insights or assistance as needed.\n';
-        }
-
-        this.generatedFileContent = output;
-
-        // Create chunks if content is large
-        if (output.length > this.chunkSize) {
-            this.fileChunks = this.splitIntoChunks(output, this.chunkSize);
-            console.log(`📦 Created ${this.fileChunks.length} chunks from ${output.length} characters`);
-
-            // Modify chunks to include part-specific instructions
-            this.fileChunks = this.fileChunks.map((chunk, index) => {
-                let chunkContent = chunk.content;
-                if (index < this.fileChunks.length - 1) {
-                    // For non-last chunks, add part instruction
-                    chunkContent = `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part ${index + 2}" after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts.\n\n${chunkContent}`;
-                } else {
-                    // For the last chunk, ensure it ends with DONE PASTING and instructions
-                    chunkContent = chunkContent.replace(
-                        /--- wait for Part \d+, only respond with "Ready for next one boss."---/,
-                        ''
-                    );
-                }
-                return {
-                    ...chunk,
-                    content: chunkContent,
-                    size: chunkContent.length
-                };
-            });
-            this.currentChunkIndex = 0;
-        } else {
-            this.fileChunks = [{
-                index: 0,
-                label: 'a',
-                filename: 'file_a',
-                content: output,
-                size: output.length,
-                startPos: 0,
-                endPos: output.length
-            }];
-            this.currentChunkIndex = 0;
-        }
-
-        const response = await fetch('/api/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain',
-            },
-            body: output
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            this.hideConfirmModal();
-            this.showSuccessModal(result, enabledProjectTypes);
-        } else {
-            alert(`❌ Error saving file: ${result.error}`);
-        }
-
     } catch (error) {
-        console.error('Error generating file:', error);
-        alert(`❌ Error generating file: ${error.message}`);
+        console.error('Error loading file content:', error);
+        const display = document.getElementById('contentDisplay');
+        display.innerHTML = `
+            <div class="error">
+                ❌ Error loading file: ${error.message}
+            </div>
+        `;
     }
 }
 
-    // Show success modal with file information
-showSuccessModal(result, enabledProjectTypes) {
+    async generateFile() {
+        try {
+            const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
+                const item = document.querySelector(`[data-path="${path}"]`);
+                return !item || item.dataset.type === 'file';
+            });
+
+            let output = '';
+
+            output += 'FILE COLLECTION\n';
+            output += '='.repeat(80) + '\n\n';
+            output += `Generated: ${new Date().toISOString()}\n`;
+            output += `Total files: ${selectedFilesList.length}\n`;
+            output += `Root directory: ${this.currentPath}\n`;
+
+            const enabledProjectTypes = [];
+            if (this.settings.projectTypes.django && this.djangoFiles.length > 0) {
+                enabledProjectTypes.push(`Django (${this.djangoFiles.length} files)`);
+            }
+            if (this.settings.projectTypes.react && this.reactFiles.length > 0) {
+                enabledProjectTypes.push(`React (${this.reactFiles.length} files)`);
+            }
+            if (enabledProjectTypes.length > 0) {
+                output += `Project types detected: ${enabledProjectTypes.join(', ')}\n`;
+            }
+
+            if (this.dockerFiles.length > 0) {
+                output += `Docker files included: ${this.dockerFiles.length}\n`;
+            }
+            output += `Output saved to: output_files_selected/ directory\n`;
+            output += '\n';
+
+            const fileInfoList = [];
+
+            for (const filePath of selectedFilesList.sort()) {
+                try {
+                    if (typeof filePath !== 'string') {
+                        console.error('Invalid filePath type:', typeof filePath, filePath);
+                        continue;
+                    }
+
+                    const content = await this.getFileContent(filePath);
+                    const fileName = filePath.split('/').pop();
+                    const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+                    const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+
+                    const displayPath = relativePath || fileName;
+                    fileInfoList.push(displayPath);
+
+                    output += '='.repeat(80) + '\n';
+                    output += `filename: ${fileName}\n`;
+                    output += `directory: ${directory}\n`;
+                    output += `relative_path: ${relativePath}\n`;
+                    output += `full_path: ${filePath}\n`;
+
+                    const classifications = [];
+                    if (this.dockerFiles.some(dockerFile => dockerFile.path === filePath)) {
+                        classifications.push('docker');
+                    }
+                    if (this.djangoFiles.some(djangoFile => djangoFile.path === filePath)) {
+                        const djangoFile = this.djangoFiles.find(df => df.path === filePath);
+                        classifications.push(`django-${djangoFile.type}`);
+                    }
+                    if (this.reactFiles.some(reactFile => reactFile.path === filePath)) {
+                        const reactFile = this.reactFiles.find(rf => rf.path === filePath);
+                        classifications.push(`react-${reactFile.type}`);
+                    }
+
+                    if (classifications.length > 0) {
+                        output += `classification: ${classifications.join(', ')}\n`;
+                    }
+
+                    if (content && content.isBinary) {
+                        output += `type: binary\n`;
+                        output += `size: ${this.formatFileSize(new Blob(['']).size)}\n`;
+                    } else if (content) {
+                        output += `type: text\n`;
+                        output += `lines: ${content.lines}\n`;
+                        output += `size: ${this.formatFileSize(new Blob([content.content]).size)}\n`;
+                    }
+
+                    output += '='.repeat(80) + '\n\n';
+
+                    if (content && !content.isBinary) {
+                        output += content.content;
+                    } else if (content && content.isBinary) {
+                        output += '// Binary file - content not included\n';
+                    } else {
+                        output += '// Could not read file content\n';
+                    }
+
+                    output += '\n\n';
+                } catch (error) {
+                    console.error(`Error processing file ${filePath}:`, error);
+                    const fileName = typeof filePath === 'string' ? filePath.split('/').pop() : 'unknown';
+                    const directory = typeof filePath === 'string' ? filePath.substring(0, filePath.lastIndexOf('/')) : 'unknown';
+
+                    if (typeof filePath === 'string') {
+                        const fileName = filePath.split('/').pop();
+                        const relativePath = filePath.replace(this.currentPath, '').replace(/^\//, '');
+                        const displayPath = relativePath || fileName;
+                        fileInfoList.push(displayPath);
+                    }
+
+                    output += '='.repeat(80) + '\n';
+                    output += `filename: ${fileName}\n`;
+                    output += `directory: ${directory}\n`;
+                    output += `full_path: ${filePath}\n`;
+                    output += `error: ${error.message}\n`;
+                    output += '='.repeat(80) + '\n\n';
+                    output += '// Error reading file\n\n';
+                }
+            }
+
+            output += '\n' + '='.repeat(80) + '\n\n';
+            output += 'DONE PASTING\n\n';
+
+            if (fileInfoList.length > 0) {
+                output += `I just gave you ${fileInfoList.length} files that are: ${fileInfoList.join(', ')}\n\n`;
+            }
+
+            output += 'Now here are your instructions:\n\n';
+
+            if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
+                output += this.settings.customPrompt.trim() + '\n';
+            } else {
+                output += 'Please analyze the provided project files and provide insights or assistance as needed.\n';
+            }
+
+            this.generatedFileContent = output;
+
+            if (output.length > this.chunkSize) {
+                this.fileChunks = this.splitIntoChunks(output, this.chunkSize);
+                console.log(`📦 Created ${this.fileChunks.length} chunks from ${output.length} characters`);
+
+                this.fileChunks = this.fileChunks.map((chunk, index) => {
+                    let chunkContent = chunk.content;
+                    if (index < this.fileChunks.length - 1) {
+                        chunkContent = `I'm going to paste multiple parts of my Django/React project files. IMPORTANT: Just respond with "Ready for part ${index + 2}" after each part until I say "DONE PASTING". Do not analyze, suggest changes, or provide any code until I finish providing all parts.\n\n${chunkContent}`;
+                    } else {
+                        chunkContent = chunkContent.replace(
+                            /--- wait for Part \d+, only respond with "Ready for next one boss."---/,
+                            ''
+                        );
+                    }
+                    return {
+                        ...chunk,
+                        content: chunkContent,
+                        size: chunkContent.length
+                    };
+                });
+                this.currentChunkIndex = 0;
+            } else {
+                this.fileChunks = [{
+                    index: 0,
+                    label: 'a',
+                    filename: 'file_a',
+                    content: output,
+                    size: output.length,
+                    startPos: 0,
+                    endPos: output.length
+                }];
+                this.currentChunkIndex = 0;
+            }
+
+            const response = await fetch('/api/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain',
+                },
+                body: output
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.hideConfirmModal();
+                this.showSuccessModal(result, enabledProjectTypes);
+            } else {
+                alert(`❌ Error saving file: ${result.error}`);
+            }
+
+        } catch (error) {
+            console.error('Error generating file:', error);
+            alert(`❌ Error generating file: ${error.message}`);
+        }
+    }
+
+    showSuccessModal(result, enabledProjectTypes) {
     const modal = document.getElementById('successModal');
 
-    // Populate file information
     document.getElementById('successFilename').textContent = result.filename;
-    document.getElementById('successDirectory').textContent = 'output_files_selected/';
+    document.getElementById('successDirectory').textContent = '📂 output_files_selected/';
     document.getElementById('successFullPath').textContent = result.relativePath;
 
-    // Calculate and show file size
     const fileSize = new Blob([this.generatedFileContent]).size;
     document.getElementById('successFileSize').textContent = this.formatFileSize(fileSize);
 
-    // Populate content statistics
     const selectedFilesList = Array.from(this.selectedFiles).filter(path => {
         const item = document.querySelector(`[data-path="${path}"]`);
         return !item || item.dataset.type === 'file';
@@ -1346,7 +1011,6 @@ showSuccessModal(result, enabledProjectTypes) {
     document.getElementById('successTotalLines').textContent = lines.toLocaleString();
     document.getElementById('successTotalChars').textContent = characters.toLocaleString();
 
-    // Show chunk information if applicable
     const chunkStat = document.getElementById('successChunkStat');
     if (this.fileChunks.length > 1) {
         chunkStat.style.display = 'flex';
@@ -1355,7 +1019,6 @@ showSuccessModal(result, enabledProjectTypes) {
         chunkStat.style.display = 'none';
     }
 
-    // Show project types if any
     const projectTypesSection = document.getElementById('successProjectTypesSection');
     const projectTypesContainer = document.getElementById('successProjectTypes');
 
@@ -1381,10 +1044,10 @@ showSuccessModal(result, enabledProjectTypes) {
         projectTypesSection.style.display = 'none';
     }
 
-    // Show/hide features based on settings
     const customPromptFeature = document.getElementById('successCustomPromptFeature');
     if (this.settings.customPrompt && this.settings.customPrompt.trim()) {
         customPromptFeature.style.display = 'flex';
+        customPromptFeature.innerHTML = '✍️ Custom Prompt Included';
     } else {
         customPromptFeature.style.display = 'none';
     }
@@ -1392,6 +1055,7 @@ showSuccessModal(result, enabledProjectTypes) {
     const dockerFeature = document.getElementById('successDockerFeature');
     if (this.dockerFiles.length > 0) {
         dockerFeature.style.display = 'flex';
+        dockerFeature.innerHTML = '🐳 Docker Files Included';
     } else {
         dockerFeature.style.display = 'none';
     }
@@ -1399,96 +1063,88 @@ showSuccessModal(result, enabledProjectTypes) {
     const dependencyFeature = document.getElementById('successDependencyFeature');
     if (this.fileDependencies.size > 0) {
         dependencyFeature.style.display = 'flex';
+        dependencyFeature.innerHTML = '🔗 Dependencies Analyzed';
     } else {
         dependencyFeature.style.display = 'none';
     }
 
-    // Show the modal
     modal.classList.remove('hidden');
 }
 
-// Hide success modal
-hideSuccessModal() {
-    document.getElementById('successModal').classList.add('hidden');
-}
+    hideSuccessModal() {
+        document.getElementById('successModal').classList.add('hidden');
+    }
 
-// Open the output folder (platform-specific)
-async openOutputFolder() {
-    try {
-        const { exec } = require('child_process');
-        const path = require('path');
-        const outputDir = path.join(process.cwd(), 'output_files_selected');
+    async openOutputFolder() {
+        try {
+            const { exec } = require('child_process');
+            const path = require('path');
+            const outputDir = path.join(process.cwd(), 'output_files_selected');
 
-        const platform = process.platform;
-        let command;
+            const platform = process.platform;
+            let command;
 
-        if (platform === 'darwin') {
-            command = `open "${outputDir}"`;
-        } else if (platform === 'win32') {
-            command = `explorer "${outputDir}"`;
-        } else {
-            command = `xdg-open "${outputDir}"`;
+            if (platform === 'darwin') {
+                command = `open "${outputDir}"`;
+            } else if (platform === 'win32') {
+                command = `explorer "${outputDir}"`;
+            } else {
+                command = `xdg-open "${outputDir}"`;
+            }
+
+            exec(command, (error) => {
+                if (error) {
+                    console.error('Error opening folder:', error);
+                    alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
+                }
+            });
+        } catch (error) {
+            console.error('Error opening folder:', error);
+            alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
+        }
+    }
+
+    setupSuccessModalListeners() {
+        const successPreviewBtn = document.getElementById('successPreviewBtn');
+        console.log('successPreviewBtn found:', !!successPreviewBtn);
+        if (successPreviewBtn) {
+            successPreviewBtn.addEventListener('click', () => {
+                console.log('Preview button clicked, opening content modal');
+                this.hideSuccessModal();
+                this.showContentModal();
+            });
+        }
+        const closeSuccessModal = document.getElementById('closeSuccessModal');
+        if (closeSuccessModal) {
+            closeSuccessModal.addEventListener('click', () => this.hideSuccessModal());
         }
 
-        exec(command, (error) => {
-            if (error) {
-                console.error('Error opening folder:', error);
-                alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
-            }
-        });
-    } catch (error) {
-        console.error('Error opening folder:', error);
-        alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
-    }
-}
+        const successCloseBtn = document.getElementById('successCloseBtn');
+        if (successCloseBtn) {
+            successCloseBtn.addEventListener('click', () => this.hideSuccessModal());
+        }
 
-// Setup success modal event listeners (add this to your setupEventListeners method)
-setupSuccessModalListeners() {
+        const successOpenFolderBtn = document.getElementById('successOpenFolderBtn');
+        if (successOpenFolderBtn) {
+            successOpenFolderBtn.addEventListener('click', () => this.openOutputFolder());
+        }
 
-        const successPreviewBtn = document.getElementById('successPreviewBtn');
-    console.log('successPreviewBtn found:', !!successPreviewBtn);
-    if (successPreviewBtn) {
-        successPreviewBtn.addEventListener('click', () => {
-            console.log('Preview button clicked, opening content modal');
-            this.hideSuccessModal();
-            this.showContentModal();
-        });
-    }
-    const closeSuccessModal = document.getElementById('closeSuccessModal');
-    if (closeSuccessModal) {
-        closeSuccessModal.addEventListener('click', () => this.hideSuccessModal());
-    }
+        const successModal = document.getElementById('successModal');
+        if (successModal) {
+            successModal.addEventListener('click', (e) => {
+                if (e.target === successModal) {
+                    this.hideSuccessModal();
+                }
+            });
+        }
 
-
-    const successCloseBtn = document.getElementById('successCloseBtn');
-    if (successCloseBtn) {
-        successCloseBtn.addEventListener('click', () => this.hideSuccessModal());
-    }
-
-    const successOpenFolderBtn = document.getElementById('successOpenFolderBtn');
-    if (successOpenFolderBtn) {
-        successOpenFolderBtn.addEventListener('click', () => this.openOutputFolder());
-    }
-
-    // Close modal when clicking outside
-    const successModal = document.getElementById('successModal');
-    if (successModal) {
-        successModal.addEventListener('click', (e) => {
-            if (e.target === successModal) {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !successModal.classList.contains('hidden')) {
                 this.hideSuccessModal();
             }
         });
     }
 
-    // Close modal with Escape key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !successModal.classList.contains('hidden')) {
-            this.hideSuccessModal();
-        }
-    });
-}
-
-    // Modal Operations
     showContentModal() {
         const modal = document.getElementById('contentModal');
         const generatedContent = document.getElementById('generatedContent');
@@ -1540,7 +1196,10 @@ setupSuccessModalListeners() {
                 if (btn) {
                     btn.setAttribute('aria-pressed', index === 0 ? 'true' : 'false');
                     btn.setAttribute('title', `Switch to ${chunk.filename} (${this.formatFileSize(chunk.size)})`);
-                    btn.addEventListener('click', () => this.switchToChunk(index));
+                    btn.addEventListener('click', () => {
+                        this.switchToChunk(index);
+                        this.playChunkSound(); // Play sound on chunk button click
+                    });
                 }
             });
         }
@@ -1622,9 +1281,7 @@ setupSuccessModalListeners() {
         document.getElementById('confirmModal').classList.add('hidden');
     }
 
-    // Event Listeners Setup
     setupEventListeners() {
-        // Basic modal listeners
         const validateBtn = document.getElementById('validateBtn');
         if (validateBtn) {
             validateBtn.addEventListener('click', () => this.showConfirmModal());
@@ -1645,7 +1302,6 @@ setupSuccessModalListeners() {
             confirmBtn.addEventListener('click', () => this.generateFile());
         }
 
-        // Content modal listeners
         const closeContentModal = document.getElementById('closeContentModal');
         if (closeContentModal) {
             closeContentModal.addEventListener('click', () => this.hideContentModal());
@@ -1666,7 +1322,6 @@ setupSuccessModalListeners() {
             downloadContentBtn.addEventListener('click', () => this.downloadContent());
         }
 
-        // Chunking-specific event listeners
         const copyAllChunksBtn = document.getElementById('copyAllChunksBtn');
         if (copyAllChunksBtn) {
             copyAllChunksBtn.addEventListener('click', () => this.copyAllChunks());
@@ -1677,10 +1332,8 @@ setupSuccessModalListeners() {
             downloadAllChunks.addEventListener('click', () => this.downloadAllChunks());
         }
 
-        // Keyboard navigation for chunks
         document.addEventListener('keydown', (event) => this.handleChunkKeyNavigation(event));
 
-        // Settings modal listeners
         const settingsBtn = document.getElementById('settingsBtn');
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => this.showSettingsModal());
@@ -1701,7 +1354,6 @@ setupSuccessModalListeners() {
             saveSettingsBtn.addEventListener('click', () => this.saveSettingsFromModal());
         }
 
-        // Settings form listeners
         this.setupSettingsFormListeners();
     }
 
@@ -1746,7 +1398,6 @@ setupSuccessModalListeners() {
         }
     }
 
-    // Settings Modal Operations
     showSettingsModal() {
         const modal = document.getElementById('settingsModal');
         const defaultPathInput = document.getElementById('defaultPath');
@@ -1804,55 +1455,57 @@ setupSuccessModalListeners() {
     }
 
     async updateProjectFilesPreview() {
-        const djangoCheckbox = document.getElementById('includeDjangoFiles');
-        const reactCheckbox = document.getElementById('includeReactFiles');
-        const projectFilesPreview = document.getElementById('projectFilesPreview');
-        const projectFilesList = document.getElementById('projectFilesList');
+    const djangoCheckbox = document.getElementById('includeDjangoFiles');
+    const reactCheckbox = document.getElementById('includeReactFiles');
+    const projectFilesPreview = document.getElementById('projectFilesPreview');
+    const projectFilesList = document.getElementById('projectFilesList');
 
-        if (!djangoCheckbox || !reactCheckbox || !projectFilesPreview || !projectFilesList) {
-            console.log('Project files preview elements not found, skipping preview update');
-            return;
-        }
-
-        const isDjangoChecked = djangoCheckbox.checked;
-        const isReactChecked = reactCheckbox.checked;
-
-        if (isDjangoChecked || isReactChecked) {
-            projectFilesPreview.style.display = 'block';
-
-            let previewHtml = '';
-
-            if (isDjangoChecked) {
-                previewHtml += '<div class="project-files-section">';
-                previewHtml += '<h5>🐍 Django Files:</h5>';
-                if (this.djangoFiles && this.djangoFiles.length > 0) {
-                    this.djangoFiles.forEach(file => {
-                        previewHtml += `<div class="project-file-item django">${file.relativePath} <span class="file-type">${file.type}</span></div>`;
-                    });
-                } else {
-                    previewHtml += '<div class="project-file-item no-files">No Django files found in current directory tree</div>';
-                }
-                previewHtml += '</div>';
-            }
-
-            if (isReactChecked) {
-                previewHtml += '<div class="project-files-section">';
-                previewHtml += '<h5>⚛️ React Files:</h5>';
-                if (this.reactFiles && this.reactFiles.length > 0) {
-                    this.reactFiles.forEach(file => {
-                        previewHtml += `<div class="project-file-item react">${file.relativePath} <span class="file-type">${file.type}</span></div>`;
-                    });
-                } else {
-                    previewHtml += '<div class="project-file-item no-files">No React files found in current directory tree</div>';
-                }
-                previewHtml += '</div>';
-            }
-
-            projectFilesList.innerHTML = previewHtml;
-        } else {
-            projectFilesPreview.style.display = 'none';
-        }
+    if (!djangoCheckbox || !reactCheckbox || !projectFilesPreview || !projectFilesList) {
+        console.log('Project files preview elements not found, skipping preview update');
+        return;
     }
+
+    const isDjangoChecked = djangoCheckbox.checked;
+    const isReactChecked = reactCheckbox.checked;
+
+    if (isDjangoChecked || isReactChecked) {
+        projectFilesPreview.style.display = 'block';
+
+        let previewHtml = '';
+
+        if (isDjangoChecked) {
+            previewHtml += '<div class="project-files-section">';
+            previewHtml += '<h5>🐍 Django Files:</h5>';
+            if (this.djangoFiles && this.djangoFiles.length > 0) {
+                this.djangoFiles.forEach(file => {
+                    const icon = file.name === 'settings.py' ? '🛠️' : '🐍';
+                    previewHtml += `<div class="project-file-item django">${icon} ${file.relativePath} <span class="file-type">${file.type}</span></div`;
+                });
+            } else {
+                previewHtml += '<div class="project-file-item no-files">No Django files found in current directory tree</div>';
+            }
+            previewHtml += '</div>';
+        }
+
+        if (isReactChecked) {
+            previewHtml += '<div class="project-files-section">';
+            previewHtml += '<h5>⚛️ React Files:</h5>';
+            if (this.reactFiles && this.reactFiles.length > 0) {
+                this.reactFiles.forEach(file => {
+                    const icon = file.name === 'package.json' ? '🛠️' : '⚛️';
+                    previewHtml += `<div class="project-file-item react">${icon} ${file.relativePath} <span class="file-type">${file.type}</span></div>`;
+                });
+            } else {
+                previewHtml += '<div class="project-file-item no-files">No React files found in current directory tree</div>';
+            }
+            previewHtml += '</div>';
+        }
+
+        projectFilesList.innerHTML = previewHtml;
+    } else {
+        projectFilesPreview.style.display = 'none';
+    }
+}
 
     async updateDockerFilesPreview() {
         const includeDockerCheckbox = document.getElementById('includeDockerFiles');
@@ -1955,7 +1608,6 @@ setupSuccessModalListeners() {
         }
     }
 
-    // Docker File Scanning
     async scanForDockerFiles() {
         try {
             const response = await fetch('/api/docker-files', {
@@ -1982,7 +1634,6 @@ setupSuccessModalListeners() {
         }
     }
 
-    // Directory Tree Operations
     async toggleDirectory(item, path) {
         const arrow = item.querySelector('.directory-arrow');
         let children = item.nextElementSibling;
@@ -2090,7 +1741,6 @@ setupSuccessModalListeners() {
         this.fileDependencies.delete(filePath);
     }
 
-    // UI Update Methods
     updateVisibleCheckboxes() {
         document.querySelectorAll('.file-item').forEach(item => {
             const checkbox = item.querySelector('.checkbox');
@@ -2271,7 +1921,6 @@ setupSuccessModalListeners() {
         progressFill.style.width = '100%';
     }
 
-    // Resizer Setup
     setupResizer() {
         try {
             const resizer = document.getElementById('resizer');
@@ -2358,3 +2007,6 @@ setupSuccessModalListeners() {
         }
     }
 }
+
+const explorer = new FileExplorer();
+document.addEventListener('DOMContentLoaded', () => explorer.init());
