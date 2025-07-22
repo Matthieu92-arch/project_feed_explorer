@@ -519,3 +519,13 @@
         word-wrap: break-word;
     }
 }
+
+.file-icon, .directory-arrow {
+    margin-right: 8px;
+    font-size: 1.2em;
+    vertical-align: middle;
+}
+.file-item-wrapper .name {
+    display: inline-block;
+    vertical-align: middle;
+}
