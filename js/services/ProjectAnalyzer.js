@@ -1,4 +1,4 @@
-// js/services/ProjectAnalyzer.js (Enhanced with Relationship Analysis)
+// js/services/ProjectAnalyzer.js (Complete with all missing methods)
 export class ProjectAnalyzer {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
@@ -31,7 +31,7 @@ export class ProjectAnalyzer {
             // Analyze project structure
             this.analyzeProjectStructure(allFiles);
             
-            // NEW: Analyze code relationships and architecture
+            // Analyze code relationships and architecture
             await this.analyzeCodeArchitecture(allFiles);
             
             // Generate recommendations
@@ -53,6 +53,545 @@ export class ProjectAnalyzer {
             console.error('❌ Error in project analysis:', error);
             return null;
         }
+    }
+
+    async getAllProjectFiles() {
+        const files = [];
+        const selectedFiles = Array.from(this.fileExplorer.selectedFiles);
+        
+        for (const filePath of selectedFiles) {
+            try {
+                const fileName = filePath.split('/').pop();
+                if (fileName && fileName.includes('.')) {
+                    files.push({
+                        path: filePath,
+                        name: fileName,
+                        relativePath: filePath.replace(this.fileExplorer.currentPath, '').replace(/^\//, ''),
+                        directory: filePath.substring(0, filePath.lastIndexOf('/'))
+                    });
+                }
+            } catch (error) {
+                console.warn(`Skipping invalid file: ${filePath}`);
+            }
+        }
+        
+        return files;
+    }
+
+    async detectProjectTypes(files) {
+        console.log('🔍 Detecting project types...');
+        
+        // Framework detection patterns
+        const detectionPatterns = {
+            react: {
+                patterns: [
+                    { file: 'package.json', content: ['react'] },
+                    { extension: '.jsx' },
+                    { extension: '.tsx' },
+                    { file: 'src/App.js' },
+                    { file: 'src/App.jsx' },
+                    { content: ['import React', 'from "react"', "from 'react'"] }
+                ],
+                subTypes: ['next.js', 'gatsby', 'create-react-app']
+            },
+            vue: {
+                patterns: [
+                    { file: 'package.json', content: ['vue'] },
+                    { extension: '.vue' },
+                    { content: ['Vue', 'createApp'] }
+                ],
+                subTypes: ['nuxt.js', 'quasar', 'vue-cli']
+            },
+            angular: {
+                patterns: [
+                    { file: 'package.json', content: ['@angular'] },
+                    { file: 'angular.json' },
+                    { content: ['@Component', '@Injectable', '@NgModule'] }
+                ],
+                subTypes: ['angular-cli', 'ionic']
+            },
+            nodejs: {
+                patterns: [
+                    { file: 'package.json', content: ['express', 'node'] },
+                    { file: 'server.js' },
+                    { file: 'app.js' },
+                    { content: ['require(', 'module.exports'] }
+                ],
+                subTypes: ['express', 'fastify', 'koa']
+            },
+            python: {
+                patterns: [
+                    { extension: '.py' },
+                    { file: 'requirements.txt' },
+                    { file: 'setup.py' },
+                    { file: 'pyproject.toml' }
+                ],
+                subTypes: ['django', 'flask', 'fastapi']
+            },
+            django: {
+                patterns: [
+                    { file: 'manage.py' },
+                    { file: 'settings.py' },
+                    { content: ['django', 'Django'] }
+                ],
+                subTypes: ['django-rest-framework']
+            },
+            flask: {
+                patterns: [
+                    { content: ['from flask', 'Flask('] },
+                    { file: 'app.py', content: ['flask'] }
+                ],
+                subTypes: ['flask-restful', 'flask-api']
+            },
+            java: {
+                patterns: [
+                    { extension: '.java' },
+                    { file: 'pom.xml' },
+                    { file: 'build.gradle' }
+                ],
+                subTypes: ['spring-boot', 'maven', 'gradle']
+            },
+            dotnet: {
+                patterns: [
+                    { extension: '.cs' },
+                    { extension: '.csproj' },
+                    { file: 'Program.cs' }
+                ],
+                subTypes: ['asp.net-core', 'blazor', 'wpf']
+            },
+            php: {
+                patterns: [
+                    { extension: '.php' },
+                    { file: 'composer.json' },
+                    { content: ['<?php'] }
+                ],
+                subTypes: ['laravel', 'symfony', 'wordpress']
+            },
+            ruby: {
+                patterns: [
+                    { extension: '.rb' },
+                    { file: 'Gemfile' },
+                    { content: ['require'] }
+                ],
+                subTypes: ['rails', 'sinatra']
+            },
+            go: {
+                patterns: [
+                    { extension: '.go' },
+                    { file: 'go.mod' },
+                    { content: ['package main', 'import ('] }
+                ],
+                subTypes: ['gin', 'echo', 'fiber']
+            },
+            rust: {
+                patterns: [
+                    { extension: '.rs' },
+                    { file: 'Cargo.toml' },
+                    { content: ['fn main()', 'use std::'] }
+                ],
+                subTypes: ['actix-web', 'warp', 'rocket']
+            }
+        };
+
+        for (const [projectType, config] of Object.entries(detectionPatterns)) {
+            const score = await this.calculateProjectTypeScore(projectType, config, files);
+            
+            if (score.confidence > 30) {
+                const subType = await this.detectSubType(projectType, config, files);
+                this.projectTypes.set(projectType, {
+                    confidence: score.confidence,
+                    indicators: score.indicators,
+                    subType: subType,
+                    mainFiles: score.mainFiles
+                });
+            }
+        }
+    }
+
+    async calculateProjectTypeScore(projectType, config, files) {
+        let score = 0;
+        const indicators = [];
+        const mainFiles = [];
+        let totalPatterns = config.patterns.length;
+
+        for (const pattern of config.patterns) {
+            const matchResult = await this.checkPattern(pattern, files);
+            if (matchResult.matches) {
+                let patternScore = 0;
+                
+                if (pattern.file) {
+                    patternScore = 25; // File existence is strong indicator
+                    mainFiles.push(pattern.file);
+                } else if (pattern.extension) {
+                    patternScore = 15; // Extension match is moderate indicator
+                } else if (pattern.content) {
+                    patternScore = 20; // Content match is strong indicator
+                }
+
+                score += patternScore;
+                indicators.push(matchResult.indicator);
+            }
+        }
+
+        // Normalize score to percentage
+        const maxPossibleScore = totalPatterns * 25;
+        const confidence = Math.min(100, Math.round((score / maxPossibleScore) * 100));
+
+        return {
+            confidence,
+            indicators: indicators.slice(0, 5), // Limit to top 5 indicators
+            mainFiles: mainFiles.slice(0, 3) // Limit to top 3 main files
+        };
+    }
+
+    async checkPattern(pattern, files) {
+        if (pattern.file) {
+            const file = files.find(f => f.name === pattern.file || f.relativePath.endsWith(pattern.file));
+            if (file) {
+                if (pattern.content) {
+                    const content = await this.getFileContent(file.path);
+                    if (content && this.containsAnyContent(content, pattern.content)) {
+                        return { matches: true, indicator: `${pattern.file} with matching content` };
+                    }
+                } else {
+                    return { matches: true, indicator: `Found ${pattern.file}` };
+                }
+            }
+        }
+
+        if (pattern.extension) {
+            const hasExtension = files.some(f => f.name.endsWith(pattern.extension));
+            if (hasExtension) {
+                return { matches: true, indicator: `Found ${pattern.extension} files` };
+            }
+        }
+
+        if (pattern.content) {
+            for (const file of files) {
+                const content = await this.getFileContent(file.path);
+                if (content && this.containsAnyContent(content, pattern.content)) {
+                    return { matches: true, indicator: `Found content patterns in ${file.name}` };
+                }
+            }
+        }
+
+        return { matches: false, indicator: null };
+    }
+
+    containsAnyContent(content, contentPatterns) {
+        return contentPatterns.some(pattern => 
+            content.toLowerCase().includes(pattern.toLowerCase())
+        );
+    }
+
+    async detectSubType(projectType, config, files) {
+        if (!config.subTypes) return null;
+
+        const subTypePatterns = {
+            'next.js': ['next.config.js', 'next'],
+            'gatsby': ['gatsby-config.js', 'gatsby'],
+            'create-react-app': ['react-scripts', 'public/index.html'],
+            'nuxt.js': ['nuxt.config.js', 'nuxt'],
+            'vue-cli': ['vue.config.js', '@vue/cli'],
+            'angular-cli': ['angular.json', '@angular/cli'],
+            'ionic': ['ionic.config.json', '@ionic'],
+            'express': ['express'],
+            'fastify': ['fastify'],
+            'koa': ['koa'],
+            'django': ['django', 'manage.py'],
+            'flask': ['flask', 'Flask'],
+            'fastapi': ['fastapi', 'FastAPI'],
+            'django-rest-framework': ['rest_framework'],
+            'flask-restful': ['flask_restful'],
+            'spring-boot': ['@SpringBootApplication', 'spring-boot'],
+            'maven': ['pom.xml'],
+            'gradle': ['build.gradle'],
+            'asp.net-core': ['Microsoft.AspNetCore', 'Program.cs'],
+            'blazor': ['@page', 'Blazor'],
+            'wpf': ['System.Windows', '.xaml'],
+            'laravel': ['artisan', 'laravel'],
+            'symfony': ['symfony', 'Symfony'],
+            'wordpress': ['wp-config.php', 'wordpress'],
+            'rails': ['Gemfile', 'rails'],
+            'sinatra': ['sinatra'],
+            'gin': ['gin-gonic'],
+            'echo': ['labstack/echo'],
+            'fiber': ['gofiber'],
+            'actix-web': ['actix-web'],
+            'warp': ['warp'],
+            'rocket': ['rocket']
+        };
+
+        for (const subType of config.subTypes) {
+            const patterns = subTypePatterns[subType];
+            if (patterns) {
+                for (const pattern of patterns) {
+                    const hasPattern = await this.checkSubTypePattern(pattern, files);
+                    if (hasPattern) {
+                        return { name: subType, confidence: 85 };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    async checkSubTypePattern(pattern, files) {
+        // Check file names
+        if (files.some(f => f.name === pattern || f.relativePath.includes(pattern))) {
+            return true;
+        }
+
+        // Check file contents
+        for (const file of files) {
+            const content = await this.getFileContent(file.path);
+            if (content && content.toLowerCase().includes(pattern.toLowerCase())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    async analyzeDependencies(files) {
+        console.log('📦 Analyzing dependencies...');
+        
+        // Analyze package.json files
+        await this.analyzeNpmDependencies(files);
+        
+        // Analyze requirements.txt files
+        await this.analyzePythonDependencies(files);
+        
+        // Analyze other dependency files
+        await this.analyzeOtherDependencies(files);
+    }
+
+    async analyzeNpmDependencies(files) {
+        const packageJsonFiles = files.filter(f => f.name === 'package.json');
+        
+        for (const file of packageJsonFiles) {
+            try {
+                const content = await this.getFileContent(file.path);
+                if (content) {
+                    const packageData = JSON.parse(content);
+                    const dependencies = [];
+                    
+                    if (packageData.dependencies) {
+                        Object.entries(packageData.dependencies).forEach(([name, version]) => {
+                            dependencies.push({ name, version, type: 'production' });
+                        });
+                    }
+                    
+                    if (packageData.devDependencies) {
+                        Object.entries(packageData.devDependencies).forEach(([name, version]) => {
+                            dependencies.push({ name, version, type: 'development' });
+                        });
+                    }
+                    
+                    this.dependencies.set('npm', {
+                        file: file.relativePath,
+                        dependencies,
+                        count: dependencies.length
+                    });
+                }
+            } catch (error) {
+                console.warn(`Error parsing package.json: ${error.message}`);
+            }
+        }
+    }
+
+    async analyzePythonDependencies(files) {
+        const requirementFiles = files.filter(f => 
+            f.name === 'requirements.txt' || 
+            f.name === 'requirements-dev.txt' ||
+            f.name === 'Pipfile' ||
+            f.name === 'pyproject.toml'
+        );
+        
+        for (const file of requirementFiles) {
+            try {
+                const content = await this.getFileContent(file.path);
+                if (content) {
+                    const dependencies = this.parsePythonDependencies(content, file.name);
+                    
+                    this.dependencies.set('python', {
+                        file: file.relativePath,
+                        dependencies,
+                        count: dependencies.length
+                    });
+                }
+            } catch (error) {
+                console.warn(`Error parsing Python dependencies: ${error.message}`);
+            }
+        }
+    }
+
+    parsePythonDependencies(content, fileName) {
+        const dependencies = [];
+        const lines = content.split('\n');
+        
+        if (fileName === 'requirements.txt' || fileName === 'requirements-dev.txt') {
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('-')) {
+                    const match = trimmed.match(/^([a-zA-Z0-9\-_.]+)([>=<~!]+.*)?$/);
+                    if (match) {
+                        dependencies.push({
+                            name: match[1],
+                            version: match[2] || '',
+                            type: fileName.includes('dev') ? 'development' : 'production'
+                        });
+                    }
+                }
+            });
+        } else if (fileName === 'Pipfile') {
+            // Basic Pipfile parsing
+            const packageMatch = content.match(/\[packages\]([\s\S]*?)(?=\[|$)/);
+            if (packageMatch) {
+                const packageSection = packageMatch[1];
+                const packages = packageSection.match(/^(\w+)\s*=\s*"([^"]+)"/gm);
+                if (packages) {
+                    packages.forEach(pkg => {
+                        const match = pkg.match(/^(\w+)\s*=\s*"([^"]+)"/);
+                        if (match) {
+                            dependencies.push({
+                                name: match[1],
+                                version: match[2],
+                                type: 'production'
+                            });
+                        }
+                    });
+                }
+            }
+        }
+        
+        return dependencies;
+    }
+
+    async analyzeOtherDependencies(files) {
+        // Analyze other dependency files like Gemfile, Cargo.toml, etc.
+        const otherDepFiles = files.filter(f => 
+            f.name === 'Gemfile' ||
+            f.name === 'Cargo.toml' ||
+            f.name === 'composer.json' ||
+            f.name === 'go.mod'
+        );
+        
+        for (const file of otherDepFiles) {
+            try {
+                const content = await this.getFileContent(file.path);
+                if (content) {
+                    const dependencies = this.parseOtherDependencies(content, file.name);
+                    
+                    const depType = this.getDepTypeFromFile(file.name);
+                    this.dependencies.set(depType, {
+                        file: file.relativePath,
+                        dependencies,
+                        count: dependencies.length
+                    });
+                }
+            } catch (error) {
+                console.warn(`Error parsing ${file.name}: ${error.message}`);
+            }
+        }
+    }
+
+    parseOtherDependencies(content, fileName) {
+        const dependencies = [];
+        
+        // Simple parsing for different file types
+        // This is a basic implementation and can be enhanced
+        
+        if (fileName === 'Gemfile') {
+            const gemMatches = content.match(/gem\s+['"]([^'"]+)['"]/g);
+            if (gemMatches) {
+                gemMatches.forEach(match => {
+                    const name = match.match(/gem\s+['"]([^'"]+)['"]/)[1];
+                    dependencies.push({ name, version: '', type: 'production' });
+                });
+            }
+        } else if (fileName === 'go.mod') {
+            const requireMatches = content.match(/require\s+([^\s]+)\s+([^\s]+)/g);
+            if (requireMatches) {
+                requireMatches.forEach(match => {
+                    const parts = match.replace('require', '').trim().split(/\s+/);
+                    if (parts.length >= 2) {
+                        dependencies.push({ 
+                            name: parts[0], 
+                            version: parts[1], 
+                            type: 'production' 
+                        });
+                    }
+                });
+            }
+        }
+        
+        return dependencies;
+    }
+
+    getDepTypeFromFile(fileName) {
+        const mapping = {
+            'Gemfile': 'ruby',
+            'Cargo.toml': 'rust',
+            'composer.json': 'php',
+            'go.mod': 'go'
+        };
+        return mapping[fileName] || 'unknown';
+    }
+
+    analyzeProjectStructure(files) {
+        console.log('🏗️ Analyzing project structure...');
+        
+        const structure = {
+            totalFiles: files.length,
+            directories: new Set(),
+            fileTypes: new Map(),
+            maxDepth: 0,
+            patterns: []
+        };
+
+        // Analyze directory structure
+        files.forEach(file => {
+            const pathParts = file.relativePath.split('/').filter(p => p);
+            structure.maxDepth = Math.max(structure.maxDepth, pathParts.length);
+            
+            // Add all parent directories
+            for (let i = 0; i < pathParts.length - 1; i++) {
+                const dirPath = pathParts.slice(0, i + 1).join('/');
+                structure.directories.add(dirPath);
+            }
+            
+            // Analyze file types
+            const extension = file.name.split('.').pop().toLowerCase();
+            if (extension && extension !== file.name) {
+                structure.fileTypes.set(extension, (structure.fileTypes.get(extension) || 0) + 1);
+            }
+        });
+
+        // Detect common patterns
+        const commonPatterns = [
+            'src', 'lib', 'app', 'components', 'pages', 'views', 
+            'controllers', 'models', 'services', 'utils', 'helpers',
+            'test', 'tests', '__tests__', 'spec', 'config', 'public',
+            'assets', 'static', 'docs', 'documentation'
+        ];
+
+        commonPatterns.forEach(pattern => {
+            if (Array.from(structure.directories).some(dir => 
+                dir.toLowerCase().includes(pattern.toLowerCase())
+            )) {
+                structure.patterns.push(pattern);
+            }
+        });
+
+        this.projectStructure = {
+            totalFiles: structure.totalFiles,
+            totalDirectories: structure.directories.size,
+            maxDepth: structure.maxDepth,
+            fileTypes: Object.fromEntries(structure.fileTypes),
+            patterns: structure.patterns
+        };
     }
 
     async analyzeCodeArchitecture(files) {
@@ -161,38 +700,6 @@ export class ProjectAnalyzer {
                 });
             }
         });
-
-        // Function calls analysis
-        const callPattern = /(\w+)\s*\(/g;
-        let match;
-        while ((match = callPattern.exec(content)) !== null) {
-            if (this.isSignificantCall(match[1])) {
-                relationships.calls.push({
-                    function: match[1],
-                    line: this.getLineNumber(content, match.index)
-                });
-            }
-        }
-
-        // Class inheritance (ES6)
-        const inheritancePattern = /class\s+(\w+)\s+extends\s+(\w+)/g;
-        while ((match = inheritancePattern.exec(content)) !== null) {
-            relationships.inheritance.push({
-                child: match[1],
-                parent: match[2],
-                line: this.getLineNumber(content, match.index)
-            });
-        }
-
-        // TypeScript interfaces
-        const interfacePattern = /interface\s+(\w+)(?:\s+extends\s+(\w+))?/g;
-        while ((match = interfacePattern.exec(content)) !== null) {
-            relationships.interfaces.push({
-                name: match[1],
-                extends: match[2],
-                line: this.getLineNumber(content, match.index)
-            });
-        }
     }
 
     analyzePythonRelationships(content, relationships) {
@@ -214,39 +721,22 @@ export class ProjectAnalyzer {
             }
         });
 
-        // Class inheritance
-        const inheritancePattern = /class\s+(\w+)\(([^)]+)\):/g;
-        let match;
-        while ((match = inheritancePattern.exec(content)) !== null) {
-            const parents = match[2].split(',').map(s => s.trim());
-            parents.forEach(parent => {
-                relationships.inheritance.push({
-                    child: match[1],
-                    parent: parent,
+        // Function and class definitions (for export analysis)
+        const defPatterns = [
+            /def\s+(\w+)\(/g,
+            /class\s+(\w+)[\(:]?/g
+        ];
+
+        defPatterns.forEach(pattern => {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                relationships.exports.push({
+                    type: pattern.source.includes('def') ? 'function' : 'class',
+                    name: match[1],
                     line: this.getLineNumber(content, match.index)
                 });
-            });
-        }
-
-        // Function definitions (for export analysis)
-        const functionPattern = /def\s+(\w+)\(/g;
-        while ((match = functionPattern.exec(content)) !== null) {
-            relationships.exports.push({
-                type: 'function',
-                name: match[1],
-                line: this.getLineNumber(content, match.index)
-            });
-        }
-
-        // Class definitions
-        const classPattern = /class\s+(\w+)[\(:]?/g;
-        while ((match = classPattern.exec(content)) !== null) {
-            relationships.exports.push({
-                type: 'class',
-                name: match[1],
-                line: this.getLineNumber(content, match.index)
-            });
-        }
+            }
+        });
     }
 
     analyzeJavaRelationships(content, relationships) {
@@ -265,35 +755,6 @@ export class ProjectAnalyzer {
                 line: this.getLineNumber(content, match.index)
             });
         }
-
-        // Class inheritance and interfaces
-        const classPattern = /class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([^{]+))?/g;
-        while ((match = classPattern.exec(content)) !== null) {
-            relationships.exports.push({
-                type: 'class',
-                name: match[1],
-                line: this.getLineNumber(content, match.index)
-            });
-
-            if (match[2]) {
-                relationships.inheritance.push({
-                    child: match[1],
-                    parent: match[2],
-                    line: this.getLineNumber(content, match.index)
-                });
-            }
-
-            if (match[3]) {
-                const interfaces = match[3].split(',').map(s => s.trim());
-                interfaces.forEach(interfaceName => {
-                    relationships.interfaces.push({
-                        implementer: match[1],
-                        interface: interfaceName,
-                        line: this.getLineNumber(content, match.index)
-                    });
-                });
-            }
-        }
     }
 
     analyzeCSharpRelationships(content, relationships) {
@@ -306,37 +767,6 @@ export class ProjectAnalyzer {
                 module: match[1],
                 line: this.getLineNumber(content, match.index)
             });
-        }
-
-        // Class inheritance and interfaces
-        const classPattern = /class\s+(\w+)(?:\s*:\s*([^{]+))?/g;
-        while ((match = classPattern.exec(content)) !== null) {
-            relationships.exports.push({
-                type: 'class',
-                name: match[1],
-                line: this.getLineNumber(content, match.index)
-            });
-
-            if (match[2]) {
-                const inheritance = match[2].split(',').map(s => s.trim());
-                inheritance.forEach(parent => {
-                    if (parent.includes('I') && parent[0] === 'I' && parent[1] === parent[1].toUpperCase()) {
-                        // Likely an interface
-                        relationships.interfaces.push({
-                            implementer: match[1],
-                            interface: parent,
-                            line: this.getLineNumber(content, match.index)
-                        });
-                    } else {
-                        // Likely a base class
-                        relationships.inheritance.push({
-                            child: match[1],
-                            parent: parent,
-                            line: this.getLineNumber(content, match.index)
-                        });
-                    }
-                });
-            }
         }
     }
 
@@ -544,7 +974,7 @@ export class ProjectAnalyzer {
             coupling.instability.set(filePath, instability);
         }
 
-        // Calculate abstractness (simplified - based on exports vs concrete implementations)
+        // Calculate abstractness (simplified)
         for (const [filePath, relationships] of this.fileRelationships.entries()) {
             const exports = relationships.exports.length;
             const implementations = relationships.calls.length + relationships.inheritance.length;
@@ -590,65 +1020,53 @@ export class ProjectAnalyzer {
         this.codeArchitecture.dataFlowPatterns = patterns;
     }
 
-    // Utility methods
-    getModulePath(filePath) {
-        const parts = filePath.split('/');
-        if (parts.length <= 2) return filePath;
-        return parts.slice(0, -1).join('/'); // Directory path
-    }
+    generateRecommendations() {
+        console.log('💡 Generating recommendations...');
+        
+        this.recommendations = [];
 
-    resolveRelativePath(currentPath, relativePath) {
-        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
-        if (relativePath.startsWith('./')) {
-            return currentDir + '/' + relativePath.substring(2);
-        } else if (relativePath.startsWith('../')) {
-            const parts = currentDir.split('/');
-            const relativeParts = relativePath.split('/');
-            let upCount = 0;
-            for (const part of relativeParts) {
-                if (part === '..') upCount++;
-                else break;
-            }
-            const resolvedParts = parts.slice(0, -upCount).concat(relativeParts.slice(upCount));
-            return resolvedParts.join('/');
+        // Analyze project types for recommendations
+        if (this.projectTypes.size === 0) {
+            this.recommendations.push({
+                type: 'project_type',
+                priority: 'medium',
+                message: 'No specific project type detected. Consider adding framework-specific configuration files.'
+            });
         }
-        return relativePath;
-    }
 
-    resolveImportPath(currentPath, importPath) {
-        if (importPath.startsWith('./') || importPath.startsWith('../')) {
-            return this.resolveRelativePath(currentPath, importPath);
-        }
-        return null; // External dependency
-    }
-
-    findFileLayer(filePath, layers) {
-        for (const [layerName, layerData] of Object.entries(layers)) {
-            if (layerData.files.includes(filePath)) {
-                return layerName;
+        // Analyze dependencies
+        for (const [depType, depData] of this.dependencies.entries()) {
+            if (depData.count > 100) {
+                this.recommendations.push({
+                    type: 'dependencies',
+                    priority: 'medium',
+                    message: `Large number of ${depType} dependencies (${depData.count}). Consider dependency audit and cleanup.`
+                });
             }
         }
-        return null;
-    }
 
-    isSignificantCall(functionName) {
-        // Filter out common/built-in functions to focus on significant calls
-        const builtIns = ['console', 'require', 'import', 'export', 'return', 'if', 'for', 'while', 'switch'];
-        return !builtIns.includes(functionName) && functionName.length > 2;
-    }
+        // Analyze structure
+        if (this.projectStructure && this.projectStructure.maxDepth > 8) {
+            this.recommendations.push({
+                type: 'structure',
+                priority: 'low',
+                message: `Deep directory structure (${this.projectStructure.maxDepth} levels). Consider flattening for better maintainability.`
+            });
+        }
 
-    isDataFlowCall(functionName) {
-        const dataFlowFunctions = ['fetch', 'axios', 'get', 'post', 'put', 'delete', 'query', 'save', 'update', 'create'];
-        return dataFlowFunctions.some(flow => functionName.toLowerCase().includes(flow));
-    }
-
-    getLineNumber(content, index) {
-        return content.substring(0, index).split('\n').length;
-    }
-
-    isBinaryFile(fileName) {
-        const binaryExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.zip', '.tar', '.gz', '.exe', '.dll'];
-        return binaryExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+        // Analyze coupling
+        if (this.codeArchitecture.couplingAnalysis.instability) {
+            const highInstabilityFiles = Array.from(this.codeArchitecture.couplingAnalysis.instability.entries())
+                .filter(([, instability]) => instability > 0.8).length;
+            
+            if (highInstabilityFiles > 0) {
+                this.recommendations.push({
+                    type: 'coupling',
+                    priority: 'medium',
+                    message: `${highInstabilityFiles} files with high instability. Consider refactoring for better stability.`
+                });
+            }
+        }
     }
 
     // Enhanced analysis summary generation
@@ -711,68 +1129,88 @@ export class ProjectAnalyzer {
         };
     }
 
-    // Rest of the existing methods remain the same...
-    async getAllProjectFiles() {
-        const files = [];
-        const selectedFiles = Array.from(this.fileExplorer.selectedFiles);
-        
-        for (const filePath of selectedFiles) {
-            try {
-                const fileName = filePath.split('/').pop();
-                if (fileName && fileName.includes('.')) {
-                    files.push({
-                        path: filePath,
-                        name: fileName,
-                        relativePath: filePath.replace(this.fileExplorer.currentPath, '').replace(/^\//, ''),
-                        directory: filePath.substring(0, filePath.lastIndexOf('/'))
-                    });
-                }
-            } catch (error) {
-                console.warn(`Skipping invalid file: ${filePath}`);
-            }
-        }
-        
-        return files;
+    // Utility methods
+    getModulePath(filePath) {
+        const parts = filePath.split('/');
+        if (parts.length <= 2) return filePath;
+        return parts.slice(0, -1).join('/'); // Directory path
     }
 
-    // ... (include all other existing methods from the original ProjectAnalyzer)
-    // detectProjectTypes, calculateProjectTypeScore, analyzeDependencies, etc.
-    // (These would be the same as in the original file)
-
-    async detectProjectTypes(files) {
-        // Framework detection patterns (same as original)
-        const detectionPatterns = {
-            react: {
-                patterns: [
-                    { file: 'package.json', content: ['react'] },
-                    { extension: '.jsx' },
-                    { extension: '.tsx' },
-                    { file: 'src/App.js' },
-                    { file: 'src/App.jsx' },
-                    { content: ['import React', 'from "react"', "from 'react'"] }
-                ],
-                subTypes: ['next.js', 'gatsby', 'create-react-app']
-            },
-            // ... (include all other patterns from original)
-        };
-
-        for (const [projectType, config] of Object.entries(detectionPatterns)) {
-            const score = await this.calculateProjectTypeScore(projectType, config, files);
-            
-            if (score.confidence > 30) {
-                const subType = await this.detectSubType(projectType, config, files);
-                this.projectTypes.set(projectType, {
-                    confidence: score.confidence,
-                    indicators: score.indicators,
-                    subType: subType,
-                    mainFiles: score.mainFiles
-                });
+    resolveRelativePath(currentPath, relativePath) {
+        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        if (relativePath.startsWith('./')) {
+            return currentDir + '/' + relativePath.substring(2);
+        } else if (relativePath.startsWith('../')) {
+            const parts = currentDir.split('/');
+            const relativeParts = relativePath.split('/');
+            let upCount = 0;
+            for (const part of relativeParts) {
+                if (part === '..') upCount++;
+                else break;
             }
+            const resolvedParts = parts.slice(0, -upCount).concat(relativeParts.slice(upCount));
+            return resolvedParts.join('/');
         }
+        return relativePath;
     }
 
-    // ... (continue with all other original methods)
-    // For brevity, I'm not repeating all the existing methods, but they should all be included
+    resolveImportPath(currentPath, importPath) {
+        if (importPath.startsWith('./') || importPath.startsWith('../')) {
+            return this.resolveRelativePath(currentPath, importPath);
+        }
+        return null; // External dependency
+    }
+
+    findFileLayer(filePath, layers) {
+        for (const [layerName, layerData] of Object.entries(layers)) {
+            if (layerData.files.includes(filePath)) {
+                return layerName;
+            }
+        }
+        return null;
+    }
+
+    findRelatedFiles(filePath, allFiles) {
+        const related = [];
+        const fileName = filePath.split('/').pop();
+        const baseName = fileName.split('.')[0];
+        const directory = filePath.substring(0, filePath.lastIndexOf('/'));
+
+        // Find files in the same directory
+        const sameDirectoryFiles = allFiles.filter(file => 
+            file.path !== filePath && 
+            file.path.startsWith(directory) &&
+            !file.path.substring(directory.length + 1).includes('/')
+        );
+
+        // Find files with similar names
+        const similarNameFiles = allFiles.filter(file => {
+            const otherFileName = file.path.split('/').pop();
+            const otherBaseName = otherFileName.split('.')[0];
+            return file.path !== filePath && (
+                otherBaseName === baseName ||
+                otherBaseName.includes(baseName) ||
+                baseName.includes(otherBaseName)
+            );
+        });
+
+        related.push(...sameDirectoryFiles.map(f => f.path), ...similarNameFiles.map(f => f.path));
+        return [...new Set(related)]; // Remove duplicates
+    }
+
+    isDataFlowCall(functionName) {
+        const dataFlowFunctions = ['fetch', 'axios', 'get', 'post', 'put', 'delete', 'query', 'save', 'update', 'create'];
+        return dataFlowFunctions.some(flow => functionName.toLowerCase().includes(flow));
+    }
+
+    getLineNumber(content, index) {
+        return content.substring(0, index).split('\n').length;
+    }
+
+    isBinaryFile(fileName) {
+        const binaryExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.zip', '.tar', '.gz', '.exe', '.dll'];
+        return binaryExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+    }
 
     async getFileContent(filePath) {
         try {
