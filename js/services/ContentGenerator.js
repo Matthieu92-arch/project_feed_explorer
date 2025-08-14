@@ -1,6 +1,7 @@
 export class ContentGenerator {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
+        this.contentFilter = fileExplorer.contentFilter;
     }
 
     async generateFile() {
@@ -10,20 +11,25 @@ export class ContentGenerator {
                 return !item || item.dataset.type === 'file';
             });
 
+            // Apply smart filtering and prioritization
+            const filterResult = this.contentFilter.filterAndPrioritizeFiles(selectedFilesList);
+            const filteredFiles = filterResult.included.map(f => f.path);
+            const filteringSummary = this.contentFilter.generateFilteringSummary(filterResult);
+
             let output = '';
 
-            // Generate header
-            output += this.generateHeader(selectedFilesList);
+            // Generate enhanced header with filtering info
+            output += this.generateEnhancedHeader(filteredFiles, filteringSummary);
 
-            // Generate file contents
+            // Generate file contents in priority order
             const fileInfoList = [];
-            for (const filePath of selectedFilesList.sort()) {
-                const fileOutput = await this.processFile(filePath, fileInfoList);
+            for (const fileData of filterResult.included) {
+                const fileOutput = await this.processFile(fileData.path, fileData.priority, fileInfoList);
                 output += fileOutput;
             }
 
-            // Generate footer
-            output += this.generateFooter(fileInfoList);
+            // Generate footer with excluded files info
+            output += this.generateEnhancedFooter(fileInfoList, filterResult);
 
             this.fileExplorer.generatedFileContent = output;
 
@@ -35,7 +41,11 @@ export class ContentGenerator {
 
             if (result.success) {
                 const enabledProjectTypes = this.getEnabledProjectTypes();
-                return { ...result, enabledProjectTypes };
+                return { 
+                    ...result, 
+                    enabledProjectTypes,
+                    filteringSummary 
+                };
             } else {
                 return result;
             }
@@ -46,12 +56,27 @@ export class ContentGenerator {
         }
     }
 
-    generateHeader(selectedFilesList) {
-        let output = 'FILE COLLECTION\n';
+    generateEnhancedHeader(selectedFilesList, filteringSummary) {
+        let output = 'SMART FILE COLLECTION\n';
         output += '='.repeat(80) + '\n\n';
         output += `Generated: ${new Date().toISOString()}\n`;
-        output += `Total files: ${selectedFilesList.length}\n`;
+        output += `Total files processed: ${filteringSummary.totalOriginal}\n`;
+        output += `Files included: ${filteringSummary.totalIncluded}\n`;
+        output += `Files filtered out: ${filteringSummary.totalExcluded}\n`;
         output += `Root directory: ${this.fileExplorer.currentPath}\n`;
+
+        // Show file prioritization breakdown
+        output += '\nFILE PRIORITIZATION:\n';
+        output += '-'.repeat(40) + '\n';
+        
+        const categoryOrder = ['core', 'business', 'config', 'docs', 'tests', 'assets', 'other'];
+        for (const category of categoryOrder) {
+            const files = filteringSummary.categories[category];
+            if (files && files.length > 0) {
+                const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+                output += `${categoryName} files (${files.length}): Priority ${files[0].priority.score}\n`;
+            }
+        }
 
         const enabledProjectTypes = this.getEnabledProjectTypes();
         if (enabledProjectTypes.length > 0) {
@@ -63,11 +88,18 @@ export class ContentGenerator {
         }
         
         output += `Output saved to: output_files_selected/ directory\n\n`;
+        
+        output += 'COMPRESSION APPLIED:\n';
+        output += '-'.repeat(40) + '\n';
+        output += '- Removed auto-generated headers and boilerplate\n';
+        output += '- Compressed package.json to essential fields\n';
+        output += '- Filtered out build artifacts and lock files\n';
+        output += '- Prioritized core business logic files\n\n';
 
         return output;
     }
 
-    async processFile(filePath, fileInfoList) {
+    async processFile(filePath, priority, fileInfoList) {
         try {
             if (typeof filePath !== 'string') {
                 console.error('Invalid filePath type:', typeof filePath, filePath);
@@ -80,13 +112,18 @@ export class ContentGenerator {
             const relativePath = filePath.replace(this.fileExplorer.currentPath, '').replace(/^\//, '');
 
             const displayPath = relativePath || fileName;
-            fileInfoList.push(displayPath);
+            fileInfoList.push({
+                path: displayPath,
+                priority: priority
+            });
 
             let output = '='.repeat(80) + '\n';
             output += `filename: ${fileName}\n`;
             output += `directory: ${directory}\n`;
             output += `relative_path: ${relativePath}\n`;
             output += `full_path: ${filePath}\n`;
+            output += `priority: ${priority.score} (${priority.category})\n`;
+            output += `priority_reason: ${priority.reason}\n`;
 
             const classifications = this.getFileClassifications(filePath);
             if (classifications.length > 0) {
@@ -97,15 +134,26 @@ export class ContentGenerator {
                 output += `type: binary\n`;
                 output += `size: ${this.fileExplorer.formatFileSize(new Blob(['']).size)}\n`;
             } else if (content) {
+                // Apply content compression
+                const originalContent = content.content;
+                const compressedContent = this.contentFilter.compressBoilerplate(originalContent, filePath);
+                
+                const originalLines = originalContent.split('\n').length;
+                const compressedLines = compressedContent.split('\n').length;
+                const compressionRatio = originalLines > 0 ? ((originalLines - compressedLines) / originalLines * 100).toFixed(1) : 0;
+                
                 output += `type: text\n`;
-                output += `lines: ${content.lines}\n`;
-                output += `size: ${this.fileExplorer.formatFileSize(new Blob([content.content]).size)}\n`;
+                output += `original_lines: ${originalLines}\n`;
+                output += `compressed_lines: ${compressedLines}\n`;
+                output += `compression_ratio: ${compressionRatio}%\n`;
+                output += `size: ${this.fileExplorer.formatFileSize(new Blob([compressedContent]).size)}\n`;
             }
 
             output += '='.repeat(80) + '\n\n';
 
             if (content && !content.isBinary) {
-                output += content.content;
+                const compressedContent = this.contentFilter.compressBoilerplate(content.content, filePath);
+                output += compressedContent;
             } else if (content && content.isBinary) {
                 output += '// Binary file - content not included\n';
             } else {
@@ -123,13 +171,17 @@ export class ContentGenerator {
             if (typeof filePath === 'string') {
                 const relativePath = filePath.replace(this.fileExplorer.currentPath, '').replace(/^\//, '');
                 const displayPath = relativePath || fileName;
-                fileInfoList.push(displayPath);
+                fileInfoList.push({
+                    path: displayPath,
+                    priority: { score: 0, category: 'error', reason: 'Processing error' }
+                });
             }
 
             let output = '='.repeat(80) + '\n';
             output += `filename: ${fileName}\n`;
             output += `directory: ${directory}\n`;
             output += `full_path: ${filePath}\n`;
+            output += `priority: 0 (error)\n`;
             output += `error: ${error.message}\n`;
             output += '='.repeat(80) + '\n\n';
             output += '// Error reading file\n\n';
@@ -157,21 +209,59 @@ export class ContentGenerator {
         return classifications;
     }
 
-    generateFooter(fileInfoList) {
+    generateEnhancedFooter(fileInfoList, filterResult) {
         let output = '\n' + '='.repeat(80) + '\n\n';
-        output += 'DONE PASTING\n\n';
+        output += 'SMART COLLECTION COMPLETE\n\n';
 
         if (fileInfoList.length > 0) {
-            output += `I just gave you ${fileInfoList.length} files that are: ${fileInfoList.join(', ')}\n\n`;
+            // Group files by priority category
+            const filesByCategory = {};
+            for (const file of fileInfoList) {
+                const category = file.priority.category;
+                if (!filesByCategory[category]) {
+                    filesByCategory[category] = [];
+                }
+                filesByCategory[category].push(file.path);
+            }
+
+            output += 'FILES INCLUDED BY PRIORITY:\n';
+            output += '-'.repeat(40) + '\n';
+            
+            const categoryOrder = ['core', 'business', 'config', 'docs', 'tests', 'assets', 'other', 'error'];
+            for (const category of categoryOrder) {
+                if (filesByCategory[category]) {
+                    const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+                    output += `${categoryName}: ${filesByCategory[category].join(', ')}\n`;
+                }
+            }
+            output += '\n';
         }
 
-        output += 'Now here are your instructions:\n\n';
+        if (filterResult.excluded.length > 0) {
+            output += 'FILES AUTOMATICALLY EXCLUDED:\n';
+            output += '-'.repeat(40) + '\n';
+            const excludedPaths = filterResult.excluded.map(f => f.path.replace(this.fileExplorer.currentPath, '').replace(/^\//, ''));
+            output += `${excludedPaths.length} files filtered out: ${excludedPaths.slice(0, 5).join(', ')}`;
+            if (excludedPaths.length > 5) {
+                output += ` and ${excludedPaths.length - 5} more...`;
+            }
+            output += '\n\n';
+        }
+
+        output += 'DONE PASTING\n\n';
+        output += 'This collection has been optimized for AI analysis with:\n';
+        output += '- Smart boilerplate removal and compression\n';
+        output += '- Intelligent file prioritization\n';
+        output += '- Automatic exclusion of generated/build files\n';
+        output += '- Enhanced metadata for better context understanding\n\n';
 
         if (this.fileExplorer.settingsManager.settings.customPrompt?.trim()) {
-            output += this.fileExplorer.settingsManager.settings.customPrompt.trim() + '\n';
-        } else {
-            output += 'Please analyze the provided project files and provide insights or assistance as needed.\n';
+            output += 'CUSTOM INSTRUCTIONS:\n';
+            output += '-'.repeat(40) + '\n';
+            output += this.fileExplorer.settingsManager.settings.customPrompt.trim() + '\n\n';
         }
+
+        output += 'Please analyze this optimized codebase and provide insights as needed.\n';
 
         return output;
     }

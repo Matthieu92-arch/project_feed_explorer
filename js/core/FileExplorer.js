@@ -6,6 +6,7 @@ import { SettingsManager } from '../services/SettingsManager.js';
 import { ChunkManager } from '../services/ChunkManager.js';
 import { ProjectScanner } from '../services/ProjectScanner.js';
 import { ContentGenerator } from '../services/ContentGenerator.js';
+import { ContentFilter } from '../services/ContentFilter.js';
 
 export class FileExplorer {
     constructor() {
@@ -29,6 +30,7 @@ export class FileExplorer {
         this.settingsManager = new SettingsManager(this);
         this.chunkManager = new ChunkManager(this);
         this.projectScanner = new ProjectScanner(this);
+        this.contentFilter = new ContentFilter(this);
         this.contentGenerator = new ContentGenerator(this);
         
         // Generated content
@@ -172,6 +174,7 @@ export class FileExplorer {
                 this.hideConfirmModal();
                 this.showSuccessModal(result, result.enabledProjectTypes);
             } else {
+                // js/core/FileExplorer.js (continued)
                 alert(`❌ Error saving file: ${result.error}`);
             }
         } catch (error) {
