@@ -1,4 +1,4 @@
-// js/services/DependencyAnalyzer.js
+// js/services/DependencyAnalyzer.js (Add missing method)
 export class DependencyAnalyzer {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
@@ -34,6 +34,60 @@ export class DependencyAnalyzer {
             this.fileExplorer.updateVisibleCheckboxes();
         } catch (error) {
             console.error('Error analyzing dependencies:', error);
+        }
+    }
+
+    // ADDED: Missing method
+    addDependencyIndicator(depPath, ownerPath) {
+        // Find the file item in the DOM and add dependency indicator
+        const item = document.querySelector(`[data-path="${depPath}"]`);
+        if (item) {
+            // Check if dependency indicator already exists
+            let indicator = item.querySelector('.dependency-indicator');
+            if (!indicator) {
+                indicator = document.createElement('span');
+                indicator.className = 'dependency-indicator';
+                indicator.textContent = 'AUTO';
+                indicator.title = `Automatically included as dependency of ${ownerPath.split('/').pop()}`;
+                
+                // Add to the end of the file item
+                item.appendChild(indicator);
+            }
+        }
+    }
+
+    // ADDED: Method to remove dependencies
+    async removeDependencies(filePath) {
+        const dependencies = this.fileExplorer.fileDependencies.get(filePath);
+        if (dependencies) {
+            for (const depPath of dependencies) {
+                // Remove from dependency owners
+                const owners = this.fileExplorer.dependencyOwners.get(depPath);
+                if (owners) {
+                    owners.delete(filePath);
+                    
+                    // If no more owners, remove from selected files and remove indicator
+                    if (owners.size === 0) {
+                        this.fileExplorer.selectedFiles.delete(depPath);
+                        this.removeDependencyIndicator(depPath);
+                        this.fileExplorer.dependencyOwners.delete(depPath);
+                    }
+                }
+            }
+            
+            // Clear dependencies for this file
+            this.fileExplorer.fileDependencies.delete(filePath);
+        }
+    }
+
+    // ADDED: Method to remove dependency indicators
+    removeDependencyIndicator(depPath) {
+        const item = document.querySelector(`[data-path="${depPath}"]`);
+        if (item) {
+            const indicator = item.querySelector('.dependency-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
         }
     }
 
@@ -135,49 +189,6 @@ export class DependencyAnalyzer {
                     foundPath = await this.checkFileExists(indexPath);
                     if (foundPath) {
                         resolvedPaths.add(foundPath);
-
-                        // Parse index file for re-exports
-                        if (importedNames && importedNames.length > 0) {
-                            const reExports = await this.parseIndexFile(foundPath);
-                            const indexDir = foundPath.substring(0, foundPath.lastIndexOf('/'));
-
-                            for (const importedName of importedNames) {
-                                if (importedName) {
-                                    const matchingExport = reExports.find(reExport =>
-                                        reExport.exportedName === importedName || reExport.exportedName === '*'
-                                    );
-
-                                    if (matchingExport) {
-                                        const reExportPath = this.resolveRelativeToIndex(indexDir, matchingExport.relativePath);
-
-                                        for (const ext of extensions) {
-                                            const reExportWithExt = reExportPath + ext;
-                                            const reExportFound = await this.checkFileExists(reExportWithExt);
-                                            if (reExportFound) {
-                                                resolvedPaths.add(reExportFound);
-                                                console.log(`✅ Found re-exported component: ${importedName} at ${reExportFound} via index file ${foundPath}`);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Try named component files
-                if (importedNames && importedNames.length > 0) {
-                    for (const importedName of importedNames) {
-                        if (importedName) {
-                            for (const ext of extensions) {
-                                const namedComponentPath = resolvedPath + '/' + importedName + ext;
-                                foundPath = await this.checkFileExists(namedComponentPath);
-                                if (foundPath) {
-                                    resolvedPaths.add(foundPath);
-                                    console.log(`✅ Found named component: ${importedName} at ${foundPath}`);
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -193,9 +204,9 @@ export class DependencyAnalyzer {
         return await this.fileExplorer.fileManager.checkFileExists(testPath) ? testPath : null;
     }
 
-    hasNoExtension = (str) => {
-                const lastSlash = str.lastIndexOf('/');
-                const lastDot = str.lastIndexOf('.');
-                return lastDot === -1 || lastDot < lastSlash;
-            }
-        }
+    hasNoExtension(str) {
+        const lastSlash = str.lastIndexOf('/');
+        const lastDot = str.lastIndexOf('.');
+        return lastDot === -1 || lastDot < lastSlash;
+    }
+}

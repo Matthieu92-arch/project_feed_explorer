@@ -1,12 +1,9 @@
-// js/ui/ModalManager.js (updated to show filtering info)
-// js/ui/ModalManager.js
 export class ModalManager {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
     }
 
     setupEventListeners() {
-        // Confirm Modal
         const closeModal = document.getElementById('closeModal');
         if (closeModal) {
             closeModal.addEventListener('click', () => this.hideConfirmModal());
@@ -22,7 +19,6 @@ export class ModalManager {
             confirmBtn.addEventListener('click', () => this.fileExplorer.generateFile());
         }
 
-        // Content Modal
         const closeContentModal = document.getElementById('closeContentModal');
         if (closeContentModal) {
             closeContentModal.addEventListener('click', () => this.hideContentModal());
@@ -53,7 +49,6 @@ export class ModalManager {
             downloadAllChunks.addEventListener('click', () => this.fileExplorer.downloadAllChunks());
         }
 
-        // Settings Modal
         const closeSettingsModal = document.getElementById('closeSettingsModal');
         if (closeSettingsModal) {
             closeSettingsModal.addEventListener('click', () => this.hideSettingsModal());
@@ -69,7 +64,6 @@ export class ModalManager {
             saveSettingsBtn.addEventListener('click', () => this.fileExplorer.saveSettingsFromModal());
         }
 
-        // Settings form listeners
         this.setupSettingsFormListeners();
     }
 
@@ -135,7 +129,7 @@ export class ModalManager {
 
         const successOpenFolderBtn = document.getElementById('successOpenFolderBtn');
         if (successOpenFolderBtn) {
-            successOpenFolderBtn.addEventListener('click', () => this.openOutputFolder());
+            successOpenFolderBtn.style.display = 'none'; // Hide as no file is saved
         }
 
         const successModal = document.getElementById('successModal');
@@ -173,7 +167,6 @@ export class ModalManager {
             return !item || item.dataset.type === 'file';
         });
 
-        // Apply smart filtering
         const filterResult = this.fileExplorer.contentFilter.filterAndPrioritizeFiles(selectedFilesList);
         const filteredFiles = filterResult.included;
 
@@ -187,12 +180,9 @@ export class ModalManager {
 
             try {
                 const content = await this.fileExplorer.fileManager.getFileContent(filePath);
-
                 if (content && !content.isBinary) {
-                    // Apply compression to get accurate size
                     const compressedContent = this.fileExplorer.contentFilter.compressBoilerplate(content.content, filePath);
                     const compressedLines = compressedContent.split('\n').length;
-                    
                     lineCount += compressedLines;
                     sizeCount += new Blob([compressedContent]).size;
                 }
@@ -213,7 +203,6 @@ export class ModalManager {
 
                 totalLines.textContent = lineCount.toLocaleString();
                 totalSize.textContent = this.fileExplorer.formatFileSize(sizeCount);
-
             } catch (error) {
                 console.error(`Error processing file ${filePath}:`, error);
                 files.push({
@@ -233,8 +222,7 @@ export class ModalManager {
 
     populateFilesList(filesList, files, excludedFiles) {
         filesList.innerHTML = '';
-        
-        // Add header for included files
+
         if (files.length > 0) {
             const headerIncluded = document.createElement('div');
             headerIncluded.className = 'file-list-header';
@@ -243,21 +231,15 @@ export class ModalManager {
             filesList.appendChild(headerIncluded);
         }
 
-        // Sort files by priority for display
         files.sort((a, b) => b.priority.score - a.priority.score);
 
         files.forEach(file => {
             const item = document.createElement('div');
             item.className = 'file-list-item';
-
             const pathDiv = document.createElement('div');
             pathDiv.className = 'file-list-path';
-            
-            // Add priority indicator
             const priorityBadge = `<span class="priority-badge priority-${file.priority.category}" style="background: ${this.getPriorityColor(file.priority.category)}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; margin-right: 8px;">${file.priority.score}</span>`;
-            
             pathDiv.innerHTML = `${priorityBadge}<strong>${file.fileName}</strong><br><small>${file.directory}</small>`;
-
             const linesDiv = document.createElement('div');
             linesDiv.className = 'file-list-lines';
             if (file.error) {
@@ -269,13 +251,11 @@ export class ModalManager {
             } else {
                 linesDiv.textContent = `${file.lines} lines`;
             }
-
             item.appendChild(pathDiv);
             item.appendChild(linesDiv);
             filesList.appendChild(item);
         });
 
-        // Add excluded files section if any
         if (excludedFiles.length > 0) {
             const headerExcluded = document.createElement('div');
             headerExcluded.className = 'file-list-header';
@@ -283,24 +263,20 @@ export class ModalManager {
             headerExcluded.style.cssText = 'padding: 8px; background: #f85149; color: white; font-weight: bold; border-radius: 4px; margin: 16px 0 8px 0;';
             filesList.appendChild(headerExcluded);
 
-            // Show first few excluded files
             const samplesToShow = Math.min(excludedFiles.length, 5);
             for (let i = 0; i < samplesToShow; i++) {
                 const excludedFile = excludedFiles[i];
                 const item = document.createElement('div');
                 item.className = 'file-list-item';
                 item.style.opacity = '0.6';
-
                 const fileName = excludedFile.path.split('/').pop();
                 const pathDiv = document.createElement('div');
                 pathDiv.className = 'file-list-path';
                 pathDiv.innerHTML = `<strong>${fileName}</strong><br><small>${excludedFile.reason}</small>`;
-
                 const typeDiv = document.createElement('div');
                 typeDiv.className = 'file-list-lines';
                 typeDiv.textContent = 'Excluded';
                 typeDiv.style.color = '#f85149';
-
                 item.appendChild(pathDiv);
                 item.appendChild(typeDiv);
                 filesList.appendChild(item);
@@ -342,14 +318,24 @@ export class ModalManager {
         const contentCharCount = document.getElementById('contentCharCount');
         const contentSizeCount = document.getElementById('contentSizeCount');
 
+        // SAFETY CHECK: Ensure all elements exist
+        if (!modal || !generatedContent || !contentFileCount || !contentLineCount || !contentCharCount || !contentSizeCount) {
+            console.error('Missing required DOM elements for content modal');
+            return;
+        }
+
         const fullContent = this.fileExplorer.generatedFileContent;
         const lines = fullContent.split('\n').length;
         const characters = fullContent.length;
         const size = new Blob([fullContent]).size;
-        const fileCount = Array.from(this.fileExplorer.selectedFiles).filter(path => {
+        
+        // FIXED: Filter to only count actual files, not directories
+        const actualFiles = Array.from(this.fileExplorer.selectedFiles).filter(path => {
             const item = document.querySelector(`[data-path="${path}"]`);
-            return !item || item.dataset.type === 'file';
-        }).length;
+            return item && item.dataset.type === 'file';
+        });
+        
+        const fileCount = actualFiles.length;
 
         contentFileCount.textContent = fileCount;
         contentLineCount.textContent = lines.toLocaleString();
@@ -371,16 +357,17 @@ export class ModalManager {
 
     showSuccessModal(result, enabledProjectTypes) {
         const modal = document.getElementById('successModal');
+        const successFilename = document.getElementById('successFilename');
+        const successDirectory = document.getElementById('successDirectory');
+        const successFullPath = document.getElementById('successFullPath');
+        const successFileSize = document.getElementById('successFileSize');
 
-        // File information
-        document.getElementById('successFilename').textContent = result.filename;
-        document.getElementById('successDirectory').textContent = '📂 output_files_selected/';
-        document.getElementById('successFullPath').textContent = result.relativePath;
+        // Update to reflect in-memory content
+        successFilename.textContent = result.filename || 'generated_content.txt';
+        successDirectory.textContent = '📋 In-memory content';
+        successFullPath.textContent = 'Not saved to disk';
+        successFileSize.textContent = this.fileExplorer.formatFileSize(result.size || new Blob([this.fileExplorer.generatedFileContent]).size);
 
-        const fileSize = new Blob([this.fileExplorer.generatedFileContent]).size;
-        document.getElementById('successFileSize').textContent = this.fileExplorer.formatFileSize(fileSize);
-
-        // Content statistics
         const selectedFilesList = Array.from(this.fileExplorer.selectedFiles).filter(path => {
             const item = document.querySelector(`[data-path="${path}"]`);
             return !item || item.dataset.type === 'file';
@@ -393,7 +380,6 @@ export class ModalManager {
         document.getElementById('successTotalLines').textContent = lines.toLocaleString();
         document.getElementById('successTotalChars').textContent = characters.toLocaleString();
 
-        // Chunk information
         const chunkStat = document.getElementById('successChunkStat');
         if (this.fileExplorer.chunkManager.fileChunks.length > 1) {
             chunkStat.style.display = 'flex';
@@ -402,10 +388,7 @@ export class ModalManager {
             chunkStat.style.display = 'none';
         }
 
-        // Project types
         this.setupProjectTypesDisplay(enabledProjectTypes);
-
-        // Features
         this.setupFeaturesDisplay();
 
         modal.classList.remove('hidden');
@@ -418,11 +401,9 @@ export class ModalManager {
         if (enabledProjectTypes.length > 0) {
             projectTypesSection.style.display = 'block';
             projectTypesContainer.innerHTML = '';
-
             enabledProjectTypes.forEach(typeInfo => {
                 const typeElement = document.createElement('div');
                 typeElement.className = 'success-project-type';
-
                 if (typeInfo.includes('Django')) {
                     typeElement.classList.add('django');
                     typeElement.innerHTML = '🐍 ' + typeInfo;
@@ -430,7 +411,6 @@ export class ModalManager {
                     typeElement.classList.add('react');
                     typeElement.innerHTML = '⚛️ ' + typeInfo;
                 }
-
                 projectTypesContainer.appendChild(typeElement);
             });
         } else {
@@ -440,30 +420,52 @@ export class ModalManager {
 
     setupFeaturesDisplay() {
         const customPromptFeature = document.getElementById('successCustomPromptFeature');
-        if (this.fileExplorer.settingsManager.settings.customPrompt?.trim()) {
-            customPromptFeature.style.display = 'flex';
-        } else {
-            customPromptFeature.style.display = 'none';
+        if (customPromptFeature) {
+            if (this.fileExplorer.settingsManager.settings.customPrompt?.trim()) {
+                customPromptFeature.style.display = 'flex';
+            } else {
+                customPromptFeature.style.display = 'none';
+            }
         }
 
         const dockerFeature = document.getElementById('successDockerFeature');
-        if (this.fileExplorer.dockerFiles.length > 0) {
-            dockerFeature.style.display = 'flex';
-        } else {
-            dockerFeature.style.display = 'none';
+        if (dockerFeature) {
+            if (this.fileExplorer.dockerFiles.length > 0) {
+                dockerFeature.style.display = 'flex';
+            } else {
+                dockerFeature.style.display = 'none';
+            }
         }
 
         const dependencyFeature = document.getElementById('successDependencyFeature');
-        if (this.fileExplorer.fileDependencies.size > 0) {
-            dependencyFeature.style.display = 'flex';
-        } else {
-            dependencyFeature.style.display = 'none';
+        if (dependencyFeature) {
+            if (this.fileExplorer.fileDependencies.size > 0) {
+                dependencyFeature.style.display = 'flex';
+            } else {
+                dependencyFeature.style.display = 'none';
+            }
         }
 
         // Add smart filtering feature indicator
         const smartFilteringFeature = document.getElementById('successSmartFilteringFeature');
         if (smartFilteringFeature) {
             smartFilteringFeature.style.display = 'flex';
+        }
+
+        // Add new enhanced analysis features (only if they exist in DOM)
+        const projectAnalysisFeature = document.getElementById('successProjectAnalysisFeature');
+        if (projectAnalysisFeature) {
+            projectAnalysisFeature.style.display = 'flex';
+        }
+
+        const dependencyAnalysisFeature = document.getElementById('successDependencyAnalysisFeature');
+        if (dependencyAnalysisFeature) {
+            dependencyAnalysisFeature.style.display = 'flex';
+        }
+
+        const structureAnalysisFeature = document.getElementById('successStructureAnalysisFeature');
+        if (structureAnalysisFeature) {
+            structureAnalysisFeature.style.display = 'flex';
         }
     }
 
@@ -477,7 +479,6 @@ export class ModalManager {
         const includeDockerCheckbox = document.getElementById('includeDockerFiles');
         const customPromptTextarea = document.getElementById('customPrompt');
         const currentDefaultPath = document.getElementById('currentDefaultPath');
-
         const djangoCheckbox = document.getElementById('includeDjangoFiles');
         const reactCheckbox = document.getElementById('includeReactFiles');
 
@@ -487,12 +488,10 @@ export class ModalManager {
         }
 
         const settings = this.fileExplorer.settingsManager.settings;
-
         if (defaultPathInput) defaultPathInput.value = settings.defaultPath || '';
         if (includeDockerCheckbox) includeDockerCheckbox.checked = settings.includeDockerFiles || false;
         if (customPromptTextarea) customPromptTextarea.value = settings.customPrompt || '';
         if (currentDefaultPath) currentDefaultPath.textContent = settings.defaultPath || 'Not set';
-
         if (djangoCheckbox) djangoCheckbox.checked = settings.projectTypes?.django || false;
         if (reactCheckbox) reactCheckbox.checked = settings.projectTypes?.react || false;
 
@@ -508,31 +507,7 @@ export class ModalManager {
     }
 
     async openOutputFolder() {
-        try {
-            const { exec } = require('child_process');
-            const path = require('path');
-            const outputDir = path.join(process.cwd(), 'output_files_selected');
-
-            const platform = process.platform;
-            let command;
-
-            if (platform === 'darwin') {
-                command = `open "${outputDir}"`;
-            } else if (platform === 'win32') {
-                command = `explorer "${outputDir}"`;
-            } else {
-                command = `xdg-open "${outputDir}"`;
-            }
-
-            exec(command, (error) => {
-                if (error) {
-                    console.error('Error opening folder:', error);
-                    alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
-                }
-            });
-        } catch (error) {
-            console.error('Error opening folder:', error);
-            alert('Could not open folder automatically. Please navigate to the output_files_selected directory manually.');
-        }
+        // Disabled since no file is saved
+        alert('No file saved to disk. Content is available in memory for copying or downloading.');
     }
 }
