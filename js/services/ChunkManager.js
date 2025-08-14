@@ -4,7 +4,7 @@ export class ChunkManager {
         this.fileExplorer = fileExplorer;
         this.fileChunks = [];
         this.currentChunkIndex = 0;
-        this.defaultChunkSize = 350000; // 350KB chunks (minimum)
+        this.defaultChunkSize = 100000; // 100KB chunks (minimum)
         this.currentChunkSize = this.defaultChunkSize;
         this.fullContent = '';
         this.maxChunkSize = 0;

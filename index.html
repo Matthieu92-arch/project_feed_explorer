@@ -344,49 +344,47 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-                <button class="btn btn-primary" id="confirmBtn">Generate File</button>
+                <button class="btn btn-primary" id="confirmBtn">Generate Content</button>
             </div>
         </div>
     </div>
 
     <!-- Content Preview Modal with Chunking Support and Dynamic Chunk Size Control -->
     <div class="modal content-modal hidden" id="contentModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📄 Generated File Content</h2>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <button class="copy-btn chunk-copy" id="copyContentBtn">📋 Copy All</button>
-                    <button class="btn btn-secondary" id="downloadAllChunks" style="display: none;">💾 Download All</button>
-                    <button class="close-btn" id="closeContentModal">&times;</button>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📄 Generated File Content</h2>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button class="copy-btn chunk-copy" id="copyContentBtn">📋 Copy Current</button>
+                <button class="btn btn-secondary" id="downloadAllChunks" style="display: none;">💾 Download All</button>
+                <button class="close-btn" id="closeContentModal">&times;</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="content-info">
+                <div class="content-info-item">
+                    <div class="content-info-value" id="contentFileCount">0</div>
+                    <div class="content-info-label">Files</div>
+                </div>
+                <div class="content-info-item">
+                    <div class="content-info-value" id="contentLineCount">0</div>
+                    <div class="content-info-label">Lines</div>
+                </div>
+                <div class="content-info-item">
+                    <div class="content-info-value" id="contentCharCount">0</div>
+                    <div class="content-info-label">Characters</div>
+                </div>
+                <div class="content-info-item">
+                    <div class="content-info-value" id="contentSizeCount">0 KB</div>
+                    <div class="content-info-label">Size</div>
+                </div>
+                <div class="content-info-item" id="chunkInfoItem" style="display: none;">
+                    <div class="content-info-value" id="currentChunkInfo">1/1</div>
+                    <div class="content-info-label">Chunk</div>
                 </div>
             </div>
-            <div class="modal-body">
-                <div class="content-info">
-                    <div class="content-info-item">
-                        <div class="content-info-value" id="contentFileCount">0</div>
-                        <div class="content-info-label">Files</div>
-                    </div>
-                    <div class="content-info-item">
-                        <div class="content-info-value" id="contentLineCount">0</div>
-                        <div class="content-info-label">Lines</div>
-                    </div>
-                    <div class="content-info-item">
-                        <div class="content-info-value" id="contentCharCount">0</div>
-                        <div class="content-info-label">Characters</div>
-                    </div>
-                    <div class="content-info-item">
-                        <div class="content-info-value" id="contentSizeCount">0 KB</div>
-                        <div class="content-info-label">Size</div>
-                    </div>
-                    <div class="content-info-item" id="chunkInfoItem" style="display: none;">
-                        <div class="content-info-value" id="currentChunkInfo">1/1</div>
-                        <div class="content-info-label">Chunk</div>
-                    </div>
-                </div>
-
                 <!-- Chunk Size Control will be inserted here dynamically -->
                 <!-- Chunk Navigation will be inserted here dynamically -->
-
                 <div class="content-display-modal" id="contentDisplayModal">
                     <pre id="generatedContent"></pre>
                 </div>
@@ -403,13 +401,13 @@
     <div class="modal hidden success-modal" id="successModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>✅ File Generated Successfully!</h2>
+                <h2>✅ Content Generated Successfully!</h2>
                 <button class="close-btn" id="closeSuccessModal">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="success-sections">
                     <div class="success-section">
-                        <h3>📁 File Information</h3>
+                        <h3>📁 Content Information</h3>
                         <div class="success-info-grid">
                             <div class="success-info-item">
                                 <label>Filename:</label>
@@ -424,7 +422,7 @@
                                 <div class="success-info-value" id="successFullPath">-</div>
                             </div>
                             <div class="success-info-item">
-                                <label>File Size:</label>
+                                <label>Content Size:</label>
                                 <div class="success-info-value" id="successFileSize">-</div>
                             </div>
                         </div>
@@ -462,13 +460,31 @@
                     <div class="success-section">
                         <h3>✨ Features Applied</h3>
                         <div class="success-features" id="successFeatures">
+                            <div class="success-feature-item" id="successProjectAnalysisFeature" style="display: flex;">
+                                <span class="success-feature-icon">🔍</span>
+                                <span class="success-feature-text">Comprehensive project analysis with 20+ framework detection</span>
+                            </div>
+
+                            <div class="success-feature-item" id="successDependencyAnalysisFeature" style="display: flex;">
+                                <span class="success-feature-icon">📦</span>
+                                <span class="success-feature-text">Dependency analysis and version tracking</span>
+                            </div>
+
+                            <div class="success-feature-item" id="successStructureAnalysisFeature" style="display: flex;">
+                                <span class="success-feature-icon">🏗️</span>
+                                <span class="success-feature-text">Intelligent project structure mapping</span>
+                            </div>
+                            <div class="success-feature-item" id="successSmartFilteringFeature" style="display: flex;">
+                                <span class="success-feature-icon">🧠</span>
+                                <span class="success-feature-text">Smart content compression and file prioritization applied</span>
+                            </div>
                             <div class="success-feature-item">
                                 <span class="success-feature-icon">📝</span>
                                 <span class="success-feature-text">AI pasting instructions added at beginning</span>
                             </div>
                             <div class="success-feature-item">
                                 <span class="success-feature-icon">📋</span>
-                                <span class="success-feature-text">File summary added at end</span>
+                                <span class="success-feature-text">Content summary added at end</span>
                             </div>
                             <div class="success-feature-item" id="successCustomPromptFeature" style="display: none;">
                                 <span class="success-feature-icon">🤖</span>
@@ -492,7 +508,7 @@
                                 <div class="success-step-number">1</div>
                                 <div class="success-step-content">
                                     <strong>Preview Content</strong><br>
-                                    <span>Click "Preview Content" to view the generated file</span>
+                                    <span>Click "Preview Content" to view the generated content</span>
                                 </div>
                             </div>
                             <div class="success-step">
@@ -521,7 +537,6 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="successOpenFolderBtn">📁 Open Folder</button>
                 <button class="btn btn-secondary" id="successPreviewBtn">👁️ Preview Content</button>
                 <button class="btn btn-primary" id="successCloseBtn">Close</button>
             </div>

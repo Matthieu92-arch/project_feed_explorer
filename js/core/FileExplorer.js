@@ -1,3 +1,4 @@
+// js/core/FileExplorer.js (Updated to include ProjectAnalyzer)
 // js/core/FileExplorer.js
 import { UIManager } from '../ui/UIManager.js';
 import { FileManager } from '../services/FileManager.js';
@@ -6,6 +7,8 @@ import { SettingsManager } from '../services/SettingsManager.js';
 import { ChunkManager } from '../services/ChunkManager.js';
 import { ProjectScanner } from '../services/ProjectScanner.js';
 import { ContentGenerator } from '../services/ContentGenerator.js';
+import { ContentFilter } from '../services/ContentFilter.js';
+import { ProjectAnalyzer } from '../services/ProjectAnalyzer.js';
 
 export class FileExplorer {
     constructor() {
@@ -29,6 +32,8 @@ export class FileExplorer {
         this.settingsManager = new SettingsManager(this);
         this.chunkManager = new ChunkManager(this);
         this.projectScanner = new ProjectScanner(this);
+        this.contentFilter = new ContentFilter(this);
+        this.projectAnalyzer = new ProjectAnalyzer(this);
         this.contentGenerator = new ContentGenerator(this);
         
         // Generated content
@@ -47,6 +52,8 @@ export class FileExplorer {
         this.updateValidateButton();
     }
 
+    // ... rest of the methods remain the same as before
+    
     // Utility Methods
     formatFileSize(bytes) {
         if (bytes === 0) return '0 B';
@@ -91,139 +98,139 @@ export class FileExplorer {
     updateVisibleCheckboxes() {
         document.querySelectorAll('.file-item').forEach(item => {
             const checkbox = item.querySelector('.checkbox');
-            const path = item.dataset.path;
-            if (checkbox && path) {
-                checkbox.checked = this.selectedFiles.has(path);
-            }
-        });
-    }
+           const path = item.dataset.path;
+           if (checkbox && path) {
+               checkbox.checked = this.selectedFiles.has(path);
+           }
+       });
+   }
 
-    // Navigation methods
-    async navigateToDirectory(targetPath) {
-        try {
-            console.log('Attempting to navigate to:', targetPath);
+   // Navigation methods
+   async navigateToDirectory(targetPath) {
+       try {
+           console.log('Attempting to navigate to:', targetPath);
 
-            const tree = document.getElementById('fileTree');
-            tree.innerHTML = '<div class="loading">🔄 Loading files...</div>';
+           const tree = document.getElementById('fileTree');
+           tree.innerHTML = '<div class="loading">🔄 Loading files...</div>';
 
-            document.getElementById('currentPath').textContent = targetPath;
+           document.getElementById('currentPath').textContent = targetPath;
 
-            await this.fileManager.loadDirectory(targetPath);
+           await this.fileManager.loadDirectory(targetPath);
 
-            this.currentPath = targetPath;
+           this.currentPath = targetPath;
 
-            if (this.settingsManager.settings.includeDockerFiles) {
-                await this.projectScanner.scanForDockerFiles();
-            }
+           if (this.settingsManager.settings.includeDockerFiles) {
+               await this.projectScanner.scanForDockerFiles();
+           }
 
-            console.log('Successfully navigated to:', targetPath);
-        } catch (error) {
-            console.error('Error navigating to directory:', error);
-            alert(`Error accessing directory: ${error.message}\n\nPlease check that the path exists and you have permission to access it.`);
-        }
-    }
+           console.log('Successfully navigated to:', targetPath);
+       } catch (error) {
+           console.error('Error navigating to directory:', error);
+           alert(`Error accessing directory: ${error.message}\n\nPlease check that the path exists and you have permission to access it.`);
+       }
+   }
 
-    async changeRootDirectory() {
-        const newPath = await this.settingsManager.openNativeFileBrowser();
-        if (newPath) {
-            await this.navigateToDirectory(newPath);
-        }
-    }
+   async changeRootDirectory() {
+       const newPath = await this.settingsManager.openNativeFileBrowser();
+       if (newPath) {
+           await this.navigateToDirectory(newPath);
+       }
+   }
 
-    // Modal management
-    async showConfirmModal() {
-        await this.uiManager.showConfirmModal();
-    }
+   // Modal management
+   async showConfirmModal() {
+       await this.uiManager.showConfirmModal();
+   }
 
-    hideConfirmModal() {
-        this.uiManager.hideConfirmModal();
-    }
+   hideConfirmModal() {
+       this.uiManager.hideConfirmModal();
+   }
 
-    showContentModal() {
-        this.uiManager.showContentModal();
-    }
+   showContentModal() {
+       this.uiManager.showContentModal();
+   }
 
-    hideContentModal() {
-        this.uiManager.hideContentModal();
-    }
+   hideContentModal() {
+       this.uiManager.hideContentModal();
+   }
 
-    showSuccessModal(result, enabledProjectTypes) {
-        this.uiManager.showSuccessModal(result, enabledProjectTypes);
-    }
+   showSuccessModal(result, enabledProjectTypes) {
+       this.uiManager.showSuccessModal(result, enabledProjectTypes);
+   }
 
-    hideSuccessModal() {
-        this.uiManager.hideSuccessModal();
-    }
+   hideSuccessModal() {
+       this.uiManager.hideSuccessModal();
+   }
 
-    showSettingsModal() {
-        this.uiManager.showSettingsModal();
-    }
+   showSettingsModal() {
+       this.uiManager.showSettingsModal();
+   }
 
-    hideSettingsModal() {
-        this.uiManager.hideSettingsModal();
-    }
+   hideSettingsModal() {
+       this.uiManager.hideSettingsModal();
+   }
 
-    // Content generation
-    async generateFile() {
-        try {
-            const result = await this.contentGenerator.generateFile();
-            
-            if (result.success) {
-                this.hideConfirmModal();
-                this.showSuccessModal(result, result.enabledProjectTypes);
-            } else {
-                alert(`❌ Error saving file: ${result.error}`);
-            }
-        } catch (error) {
-            console.error('Error generating file:', error);
-            alert(`❌ Error generating file: ${error.message}`);
-        }
-    }
+   // Content generation
+   async generateFile() {
+       try {
+           const result = await this.contentGenerator.generateFile();
+           
+           if (result.success) {
+               this.hideConfirmModal();
+               this.showSuccessModal(result, result.enabledProjectTypes);
+           } else {
+               alert(`❌ Error saving file: ${result.error}`);
+           }
+       } catch (error) {
+           console.error('Error generating file:', error);
+           alert(`❌ Error generating file: ${error.message}`);
+       }
+   }
 
-    // Copy and download methods
-    async copyContentToClipboard() {
-        await this.chunkManager.copyCurrentChunk();
-    }
+   // Copy and download methods
+   async copyContentToClipboard() {
+       await this.chunkManager.copyCurrentChunk();
+   }
 
-    async copyAllChunks() {
-        await this.chunkManager.copyAllChunks();
-    }
+   async copyAllChunks() {
+       await this.chunkManager.copyAllChunks();
+   }
 
-    downloadContent() {
-        this.chunkManager.downloadCurrentChunk();
-    }
+   downloadContent() {
+       this.chunkManager.downloadCurrentChunk();
+   }
 
-    downloadAllChunks() {
-        this.chunkManager.downloadAllChunks();
-    }
+   downloadAllChunks() {
+       this.chunkManager.downloadAllChunks();
+   }
 
-    // Chunk navigation
-    switchToChunk(index) {
-        this.chunkManager.switchToChunk(index);
-        this.playChunkSound();
-    }
+   // Chunk navigation
+   switchToChunk(index) {
+       this.chunkManager.switchToChunk(index);
+       this.playChunkSound();
+   }
 
-    handleChunkKeyNavigation(event) {
-        this.chunkManager.handleKeyNavigation(event);
-    }
+   handleChunkKeyNavigation(event) {
+       this.chunkManager.handleKeyNavigation(event);
+   }
 
-    // Settings management
-    async saveSettingsFromModal() {
-        return await this.settingsManager.saveSettingsFromModal();
-    }
+   // Settings management
+   async saveSettingsFromModal() {
+       return await this.settingsManager.saveSettingsFromModal();
+   }
 
-    // Project scanning
-    async scanForProjectFiles() {
-        await this.projectScanner.scanForProjectFiles();
-    }
+   // Project scanning
+   async scanForProjectFiles() {
+       await this.projectScanner.scanForProjectFiles();
+   }
 
-    async scanForDockerFiles() {
-        await this.projectScanner.scanForDockerFiles();
-    }
+   async scanForDockerFiles() {
+       await this.projectScanner.scanForDockerFiles();
+   }
 }
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.fileExplorer = new FileExplorer();
-    window.fileExplorer.init();
+   window.fileExplorer = new FileExplorer();
+   window.fileExplorer.init();
 });
