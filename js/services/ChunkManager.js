@@ -4,7 +4,11 @@ export class ChunkManager {
         this.fileExplorer = fileExplorer;
         this.fileChunks = [];
         this.currentChunkIndex = 0;
-        this.chunkSize = 350000; // 350KB chunks
+        this.defaultChunkSize = 350000; // 350KB chunks (minimum)
+        this.currentChunkSize = this.defaultChunkSize;
+        this.fullContent = '';
+        this.maxChunkSize = 0;
+        this.isApplyingChanges = false;
     }
 
     splitIntoChunks(content, chunkSize) {
@@ -43,9 +47,32 @@ export class ChunkManager {
     }
 
     processContent(content) {
-        if (content.length > this.chunkSize) {
-            this.fileChunks = this.splitIntoChunks(content, this.chunkSize);
-            console.log(`📦 Created ${this.fileChunks.length} chunks from ${content.length} characters`);
+        this.fullContent = content;
+        this.maxChunkSize = content.length;
+        this.currentChunkSize = Math.min(this.defaultChunkSize, this.maxChunkSize);
+        
+        this.rechunkContent(this.currentChunkSize);
+    }
+
+    rechunkContent(chunkSize) {
+        this.currentChunkSize = chunkSize;
+        
+        // If chunk size is greater than or equal to content length, create single chunk
+        if (chunkSize >= this.fullContent.length) {
+            this.fileChunks = [{
+                index: 0,
+                label: 'a',
+                filename: 'file_a',
+                content: this.fullContent,
+                size: this.fullContent.length,
+                startPos: 0,
+                endPos: this.fullContent.length
+            }];
+            this.currentChunkIndex = 0;
+            console.log(`📦 Created 1 chunk (full content) of ${this.formatSize(this.fullContent.length)}`);
+        } else {
+            this.fileChunks = this.splitIntoChunks(this.fullContent, chunkSize);
+            console.log(`📦 Created ${this.fileChunks.length} chunks of ~${this.formatSize(chunkSize)} each from ${this.formatSize(this.fullContent.length)} total`);
 
             // Add instructions for multi-part content
             this.fileChunks = this.fileChunks.map((chunk, index) => {
@@ -59,31 +86,225 @@ export class ChunkManager {
                     size: chunkContent.length
                 };
             });
-            this.currentChunkIndex = 0;
-        } else {
-            this.fileChunks = [{
-                index: 0,
-                label: 'a',
-                filename: 'file_a',
-                content: content,
-                size: content.length,
-                startPos: 0,
-                endPos: content.length
-            }];
-            this.currentChunkIndex = 0;
+            this.currentChunkIndex = Math.min(this.currentChunkIndex, this.fileChunks.length - 1);
         }
+    }
+
+    formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    createChunkSizeControl() {
+        const control = document.createElement('div');
+        control.className = 'chunk-size-control';
+        control.id = 'chunkSizeControl';
+        
+        // Round up to the next 100KB to ensure we can always fit the full content
+        const bufferSize = 100000; // 100KB buffer
+        const maxSliderValue = Math.ceil(this.maxChunkSize / bufferSize) * bufferSize + bufferSize;
+        
+        control.innerHTML = `
+            <div class="chunk-size-header">
+                <div class="chunk-size-title">
+                    📦 Chunk Size Control
+                </div>
+                <div class="chunk-size-info">
+                    <span>Total: ${this.formatSize(this.maxChunkSize)}</span>
+                    <span>•</span>
+                    <span>Min: ${this.formatSize(this.defaultChunkSize)}</span>
+                </div>
+            </div>
+            
+            <div class="chunk-size-slider-container">
+                <input 
+                    type="range" 
+                    class="chunk-size-slider" 
+                    id="chunkSizeSlider"
+                    min="${this.defaultChunkSize}" 
+                    max="${maxSliderValue}" 
+                    value="${this.currentChunkSize}"
+                    step="10000"
+                >
+                <div class="chunk-size-value" id="chunkSizeValue">
+                    ${this.formatSize(this.currentChunkSize)}
+                </div>
+            </div>
+            
+            <div class="chunk-size-labels">
+                <span>${this.formatSize(this.defaultChunkSize)}</span>
+                <span>Max (${this.formatSize(this.maxChunkSize)})</span>
+            </div>
+            
+            <div class="chunk-size-stats">
+                <div class="chunk-size-stat">
+                    <div class="chunk-size-stat-value" id="chunkCount">${this.fileChunks.length}</div>
+                    <div class="chunk-size-stat-label">Chunks</div>
+                </div>
+                <div class="chunk-size-stat">
+                    <div class="chunk-size-stat-value" id="avgChunkSize">${this.formatSize(this.getAverageChunkSize())}</div>
+                    <div class="chunk-size-stat-label">Avg Size</div>
+                </div>
+                <div class="chunk-size-stat">
+                    <div class="chunk-size-stat-value" id="largestChunk">${this.formatSize(this.getLargestChunkSize())}</div>
+                    <div class="chunk-size-stat-label">Largest</div>
+                </div>
+                <div class="chunk-size-stat">
+                    <div class="chunk-size-stat-value" id="smallestChunk">${this.formatSize(this.getSmallestChunkSize())}</div>
+                    <div class="chunk-size-stat-label">Smallest</div>
+                </div>
+            </div>
+        `;
+        
+        this.setupChunkSizeSlider(control);
+        return control;
+    }
+
+    setupChunkSizeSlider(control) {
+        const slider = control.querySelector('#chunkSizeSlider');
+        const valueDisplay = control.querySelector('#chunkSizeValue');
+        let updateTimeout;
+
+        slider.addEventListener('input', (e) => {
+            let newSize = parseInt(e.target.value);
+            
+            // If we're at 90% or more of the total content size, treat it as "full content"
+            // This ensures we capture the full content even with rounding issues
+            if (newSize >= this.maxChunkSize * 0.9) {
+                newSize = this.maxChunkSize;
+                valueDisplay.textContent = `${this.formatSize(newSize)} (Full)`;
+            } else {
+                valueDisplay.textContent = this.formatSize(newSize);
+            }
+            
+            // Clear existing timeout
+            clearTimeout(updateTimeout);
+            
+            // Set new timeout for debounced update
+            updateTimeout = setTimeout(() => {
+                this.updateChunkSize(newSize);
+            }, 300); // 300ms delay for smooth sliding
+        });
+
+        // Immediate update on mouseup for better UX
+        slider.addEventListener('mouseup', () => {
+            clearTimeout(updateTimeout);
+            let newSize = parseInt(slider.value);
+            
+            // If we're at 90% or more of the total content size, treat it as "full content"
+            if (newSize >= this.maxChunkSize * 0.9) {
+                newSize = this.maxChunkSize;
+                valueDisplay.textContent = `${this.formatSize(newSize)} (Full)`;
+            } else {
+                valueDisplay.textContent = this.formatSize(newSize);
+            }
+            
+            this.updateChunkSize(newSize);
+        });
+    }
+
+    async updateChunkSize(newSize) {
+        if (this.isApplyingChanges || newSize === this.currentChunkSize) {
+            return;
+        }
+
+        this.isApplyingChanges = true;
+        
+        // Show applying state
+        const control = document.getElementById('chunkSizeControl');
+        if (control) {
+            control.classList.add('chunk-size-applying');
+        }
+
+        try {
+            // Rechunk the content with new size
+            this.rechunkContent(newSize);
+            
+            // Update the UI
+            this.updateChunkNavigation();
+            this.updateChunkStats();
+            this.switchToChunk(0); // Reset to first chunk
+            
+            // Update chunk info in content modal
+            const chunkInfoItem = document.getElementById('chunkInfoItem');
+            if (chunkInfoItem && this.fileChunks.length > 1) {
+                chunkInfoItem.style.display = 'flex';
+                document.getElementById('currentChunkInfo').textContent = `1/${this.fileChunks.length}`;
+            } else if (chunkInfoItem) {
+                chunkInfoItem.style.display = 'none';
+            }
+
+            // Update copy/download buttons visibility
+            const copyAllChunksBtn = document.getElementById('copyAllChunksBtn');
+            const downloadAllChunks = document.getElementById('downloadAllChunks');
+            
+            if (this.fileChunks.length > 1) {
+                if (copyAllChunksBtn) copyAllChunksBtn.style.display = 'inline-block';
+                if (downloadAllChunks) downloadAllChunks.style.display = 'inline-block';
+            } else {
+                if (copyAllChunksBtn) copyAllChunksBtn.style.display = 'none';
+                if (downloadAllChunks) downloadAllChunks.style.display = 'none';
+            }
+
+            console.log(`🔄 Rechunked content: ${this.fileChunks.length} chunks of ~${this.formatSize(newSize)}`);
+            
+        } catch (error) {
+            console.error('Error updating chunk size:', error);
+        } finally {
+            this.isApplyingChanges = false;
+            
+            // Remove applying state
+            if (control) {
+                control.classList.remove('chunk-size-applying');
+            }
+        }
+    }
+
+    updateChunkStats() {
+        const chunkCount = document.getElementById('chunkCount');
+        const avgChunkSize = document.getElementById('avgChunkSize');
+        const largestChunk = document.getElementById('largestChunk');
+        const smallestChunk = document.getElementById('smallestChunk');
+
+        if (chunkCount) chunkCount.textContent = this.fileChunks.length;
+        if (avgChunkSize) avgChunkSize.textContent = this.formatSize(this.getAverageChunkSize());
+        if (largestChunk) largestChunk.textContent = this.formatSize(this.getLargestChunkSize());
+        if (smallestChunk) smallestChunk.textContent = this.formatSize(this.getSmallestChunkSize());
+    }
+
+    getAverageChunkSize() {
+        if (this.fileChunks.length === 0) return 0;
+        const totalSize = this.fileChunks.reduce((sum, chunk) => sum + chunk.size, 0);
+        return Math.round(totalSize / this.fileChunks.length);
+    }
+
+    getLargestChunkSize() {
+        if (this.fileChunks.length === 0) return 0;
+        return Math.max(...this.fileChunks.map(chunk => chunk.size));
+    }
+
+    getSmallestChunkSize() {
+        if (this.fileChunks.length === 0) return 0;
+        return Math.min(...this.fileChunks.map(chunk => chunk.size));
     }
 
     createChunkNavigation() {
         const nav = document.createElement('div');
-        nav.className = 'chunk-navigation';
+        nav.className = 'chunk-navigation with-size-control';
+        nav.id = 'chunkNavigation';
         
         const header = document.createElement('div');
         header.className = 'chunk-nav-header';
         
         const info = document.createElement('div');
         info.className = 'chunk-info';
-        info.innerHTML = `Split into ${this.fileChunks.length} chunks for easier handling`;
+        info.innerHTML = `
+            Split into ${this.fileChunks.length} chunks
+            <span class="chunk-size-badge">${this.formatSize(this.currentChunkSize)}</span>
+        `;
         
         header.appendChild(info);
         nav.appendChild(header);
@@ -96,7 +317,7 @@ export class ChunkManager {
             btn.className = 'chunk-btn';
             btn.id = `chunkBtn${index}`;
             btn.setAttribute('aria-pressed', index === 0 ? 'true' : 'false');
-            btn.setAttribute('title', `Switch to ${chunk.filename} (${this.fileExplorer.formatFileSize(chunk.size)})`);
+            btn.setAttribute('title', `Switch to ${chunk.filename} (${this.formatSize(chunk.size)})`);
             
             const label = document.createElement('div');
             label.className = 'chunk-btn-label';
@@ -104,7 +325,7 @@ export class ChunkManager {
             
             const size = document.createElement('div');
             size.className = 'chunk-btn-size';
-            size.textContent = this.fileExplorer.formatFileSize(chunk.size);
+            size.textContent = this.formatSize(chunk.size);
             
             btn.appendChild(label);
             btn.appendChild(size);
@@ -113,6 +334,26 @@ export class ChunkManager {
         
         nav.appendChild(buttons);
         return nav;
+    }
+
+    updateChunkNavigation() {
+        const existingNav = document.getElementById('chunkNavigation');
+        if (existingNav) {
+            const newNav = this.createChunkNavigation();
+            
+            // Setup event listeners for new navigation
+            this.fileChunks.forEach((chunk, index) => {
+                const btn = newNav.querySelector(`#chunkBtn${index}`);
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        this.switchToChunk(index);
+                        this.fileExplorer.playChunkSound();
+                    });
+                }
+            });
+            
+            existingNav.replaceWith(newNav);
+        }
     }
 
     setupContentModal(modal, generatedContent) {
@@ -138,11 +379,20 @@ export class ChunkManager {
         }
 
         const modalBody = modal.querySelector('.modal-body');
+        
+        // Remove existing controls
+        const existingControl = modalBody.querySelector('.chunk-size-control');
         const existingNav = modalBody.querySelector('.chunk-navigation');
-        if (existingNav) {
-            existingNav.remove();
+        if (existingControl) existingControl.remove();
+        if (existingNav) existingNav.remove();
+
+        // Add chunk size control if content can be chunked
+        if (this.maxChunkSize > this.defaultChunkSize) {
+            const chunkSizeControl = this.createChunkSizeControl();
+            modalBody.insertBefore(chunkSizeControl, modalBody.querySelector('.content-display-modal'));
         }
 
+        // Add chunk navigation if needed
         if (this.fileChunks.length > 1) {
             const chunkNavigation = this.createChunkNavigation();
             modalBody.insertBefore(chunkNavigation, modalBody.querySelector('.content-display-modal'));

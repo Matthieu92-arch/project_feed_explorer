@@ -14,6 +14,251 @@
     <link rel="stylesheet" href="css/success-modals.css">
     <link rel="stylesheet" href="css/project-files.css">
     <link rel="stylesheet" href="css/chunking.css">
+    
+    <!-- Inline styles for chunk size control -->
+    <style>
+        /* Enhanced Content Modal with Chunk Size Control */
+        .content-modal .modal-body {
+            padding: 0;
+            overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        /* Chunk Size Control Styles */
+        .chunk-size-control {
+            background: #1c2526;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 16px 20px;
+            margin-bottom: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .chunk-size-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .chunk-size-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f6fc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chunk-size-info {
+            font-size: 12px;
+            color: #7d8590;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chunk-size-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .chunk-size-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            background: #21262d;
+            border-radius: 4px;
+            outline: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 1px solid #30363d;
+        }
+
+        .chunk-size-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+            border: 2px solid #0d1117;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
+        }
+
+        .chunk-size-slider::-webkit-slider-thumb:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
+            transform: scale(1.1);
+        }
+
+        .chunk-size-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+            border: 2px solid #0d1117;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
+        }
+
+        .chunk-size-slider::-moz-range-thumb:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
+            transform: scale(1.1);
+        }
+
+        .chunk-size-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #7d8590;
+            margin-top: 4px;
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+        }
+
+        .chunk-size-value {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+            font-size: 13px;
+            color: #58a6ff;
+            font-weight: 600;
+            min-width: 100px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .chunk-size-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .chunk-size-stat {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .chunk-size-stat-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #58a6ff;
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+        }
+
+        .chunk-size-stat-label {
+            font-size: 10px;
+            color: #7d8590;
+            margin-top: 2px;
+        }
+
+        .chunk-size-applying {
+            opacity: 0.6;
+            pointer-events: none;
+            position: relative;
+        }
+
+        .chunk-size-applying::after {
+            content: '⚡ Applying changes...';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #21262d;
+            color: #58a6ff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        /* Enhanced chunk navigation with size info */
+        .chunk-navigation.with-size-control {
+            margin-top: 0;
+            border-top: 1px solid #2d3748;
+        }
+
+        .chunk-nav-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .chunk-info {
+            font-size: 12px;
+            color: #7d8590;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chunk-size-badge {
+            background: #1f6feb;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        /* Responsive design for chunk size control */
+        @media (max-width: 768px) {
+            .chunk-size-control {
+                margin: 12px 16px;
+                margin-bottom: 0;
+                padding: 12px 16px;
+            }
+            
+            .chunk-size-slider-container {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .chunk-size-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            
+            .chunk-size-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .chunk-size-stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .chunk-size-info {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -104,7 +349,7 @@
         </div>
     </div>
 
-    <!-- Content Preview Modal with Chunking Support -->
+    <!-- Content Preview Modal with Chunking Support and Dynamic Chunk Size Control -->
     <div class="modal content-modal hidden" id="contentModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -139,6 +384,7 @@
                     </div>
                 </div>
 
+                <!-- Chunk Size Control will be inserted here dynamically -->
                 <!-- Chunk Navigation will be inserted here dynamically -->
 
                 <div class="content-display-modal" id="contentDisplayModal">
@@ -252,12 +498,19 @@
                             <div class="success-step">
                                 <div class="success-step-number">2</div>
                                 <div class="success-step-content">
+                                    <strong>Adjust Chunk Size</strong><br>
+                                    <span>Use the slider to customize chunk sizes for easier handling</span>
+                                </div>
+                            </div>
+                            <div class="success-step">
+                                <div class="success-step-number">3</div>
+                                <div class="success-step-content">
                                     <strong>Copy or Download</strong><br>
                                     <span>Use the copy/download buttons in the preview modal</span>
                                 </div>
                             </div>
                             <div class="success-step">
-                                <div class="success-step-number">3</div>
+                                <div class="success-step-number">4</div>
                                 <div class="success-step-content">
                                     <strong>Share with AI</strong><br>
                                     <span>Paste the content to your AI assistant for analysis</span>
