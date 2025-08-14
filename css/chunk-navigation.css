@@ -1,0 +1,83 @@
+/* Chunk Navigation Styles */
+.chunk-navigation {
+display: flex;
+justify-content: center;
+align-items: center;
+gap: 8px;
+margin-bottom: 16px;
+padding: 8px;
+background: #1c2526;
+border-radius: 8px;
+box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chunk-btn {
+padding: 8px 16px;
+font-size: 14px;
+font-weight: 500;
+color: #ffffff;
+background: #2d3748;
+border: none;
+border-radius: 6px;
+cursor: pointer;
+transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+position: relative;
+overflow: hidden;
+}
+
+.chunk-btn:hover {
+background: #4a5568;
+transform: translateY(-1px);
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.chunk-btn:active {
+transform: translateY(0);
+box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chunk-btn[aria-pressed="true"] {
+background: #3182ce;
+font-weight: 600;
+}
+
+.chunk-btn:disabled {
+background: #4a5568;
+color: #a0aec0;
+cursor: not-allowed;
+opacity: 0.6;
+}
+
+/* Ripple effect on click */
+.chunk-btn::after {
+content: '';
+position: absolute;
+top: 50%;
+left: 50%;
+width: 100px;
+height: 100px;
+background: rgba(255, 255, 255, 0.2);
+border-radius: 50%;
+transform: translate(-50%, -50%) scale(0);
+transition: transform 0.3s ease;
+pointer-events: none;
+}
+
+.chunk-btn:active::after {
+transform: translate(-50%, -50%) scale(1);
+opacity: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+.chunk-navigation {
+flex-wrap: wrap;
+gap: 6px;
+padding: 6px;
+}
+
+.chunk-btn {
+padding: 6px 12px;
+font-size: 12px;
+}
+}

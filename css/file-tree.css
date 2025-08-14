@@ -1,0 +1,181 @@
+/* File Tree Styles */
+.file-tree {
+padding: 12px 8px;
+}
+
+/* Enhanced File Items */
+.file-item {
+display: flex;
+align-items: center;
+padding: 8px 12px;
+margin: 2px 0;
+border-radius: 8px;
+cursor: pointer;
+font-size: 14px;
+position: relative;
+transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+border: 1px solid transparent;
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* File Item Wrapper - ensures horizontal layout /
+.file-item-wrapper {
+display: flex;
+align-items: center;
+flex: 1;
+min-width: 0; / Allows text truncation */
+}
+
+.file-item:hover {
+background: linear-gradient(135deg, rgba(129, 199, 132, 0.08) 0%, rgba(102, 187, 106, 0.05) 100%);
+border-color: rgba(129, 199, 132, 0.2);
+transform: translateX(4px);
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.file-item.selected {
+background: linear-gradient(135deg, rgba(129, 199, 132, 0.15) 0%, rgba(102, 187, 106, 0.1) 100%);
+border-color: rgba(129, 199, 132, 0.3);
+box-shadow: 0 0 0 1px rgba(129, 199, 132, 0.2);
+}
+
+.file-item.directory {
+font-weight: 500;
+}
+
+.file-item.file {
+font-weight: 400;
+}
+
+/* Enhanced Children Container */
+.children {
+margin-left: 32px;
+border-left: 2px solid rgba(129, 199, 132, 0.2);
+padding-left: 12px;
+position: relative;
+transition: all 0.3s ease;
+}
+
+.children::before {
+content: '';
+position: absolute;
+left: -2px;
+top: 0;
+bottom: 0;
+width: 2px;
+background: linear-gradient(180deg, rgba(129, 199, 132, 0.3) 0%, transparent 100%);
+transition: all 0.3s ease;
+}
+
+.children:hover::before {
+background: linear-gradient(180deg, rgba(129, 199, 132, 0.5) 0%, rgba(129, 199, 132, 0.1) 100%);
+}
+
+.children.hidden {
+display: none;
+}
+
+/* Loading State */
+.loading {
+color: #81c784;
+font-style: italic;
+padding: 20px 16px;
+text-align: center;
+font-size: 14px;
+background: linear-gradient(135deg, rgba(129, 199, 132, 0.05) 0%, transparent 100%);
+border-radius: 8px;
+margin: 8px;
+border: 1px dashed rgba(129, 199, 132, 0.3);
+animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+0%, 100% {
+opacity: 0.6;
+}
+50% {
+opacity: 1;
+}
+}
+
+/* Error State */
+.error {
+color: #fc8181;
+padding: 16px;
+background: linear-gradient(135deg, rgba(252, 129, 129, 0.1) 0%, rgba(245, 101, 101, 0.05) 100%);
+border: 1px solid rgba(252, 129, 129, 0.3);
+border-radius: 8px;
+margin: 8px;
+font-size: 14px;
+box-shadow: 0 2px 4px rgba(252, 129, 129, 0.2);
+}
+
+/* File Type Specific Styling */
+.file-item[data-extension="py"] .file-icon {
+color: #4caf50;
+background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="js"] .file-icon,
+.file-item[data-extension="jsx"] .file-icon,
+.file-item[data-extension="ts"] .file-icon,
+.file-item[data-extension="tsx"] .file-icon {
+color: #ffc107;
+background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="json"] .file-icon {
+color: #ff9800;
+background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="md"] .file-icon {
+color: #2196f3;
+background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="docker"] .file-icon {
+color: #00bcd4;
+background: linear-gradient(135deg, rgba(0, 188, 212, 0.1) 0%, transparent 100%);
+}
+
+/* Selection Animation */
+.file-item.selecting {
+animation: selectPulse 0.3s ease-out;
+}
+
+@keyframes selectPulse {
+0% {
+transform: scale(1);
+}
+50% {
+transform: scale(1.02) translateX(8px);
+background: rgba(129, 199, 132, 0.2);
+}
+100% {
+transform: scale(1) translateX(4px);
+}
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+.file-tree {
+padding: 10px 6px;
+}
+
+.file-item {
+padding: 6px 10px;
+font-size: 13px;
+}
+}
+
+@media (max-width: 768px) {
+.children {
+margin-left: 24px;
+padding-left: 8px;
+}
+
+.file-item {
+padding: 8px;
+}
+}
