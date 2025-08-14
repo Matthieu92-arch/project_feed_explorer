@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Local File Explorer</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/chunking.css">
 </head>
 <body>
     <div class="header">
@@ -144,127 +145,127 @@
         </div>
     </div>
 
-    <!-- Success Modal - Add this to your index.html file after the Settings Modal -->
-<div class="modal hidden success-modal" id="successModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>✅ File Generated Successfully!</h2>
-            <button class="close-btn" id="closeSuccessModal">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="success-sections">
-                <div class="success-section">
-                    <h3>📁 File Information</h3>
-                    <div class="success-info-grid">
-                        <div class="success-info-item">
-                            <label>Filename:</label>
-                            <div class="success-info-value" id="successFilename">-</div>
-                        </div>
-                        <div class="success-info-item">
-                            <label>Directory:</label>
-                            <div class="success-info-value" id="successDirectory">-</div>
-                        </div>
-                        <div class="success-info-item">
-                            <label>Full Path:</label>
-                            <div class="success-info-value" id="successFullPath">-</div>
-                        </div>
-                        <div class="success-info-item">
-                            <label>File Size:</label>
-                            <div class="success-info-value" id="successFileSize">-</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="success-section">
-                    <h3>📊 Content Statistics</h3>
-                    <div class="success-stats-grid">
-                        <div class="success-stat-item">
-                            <div class="success-stat-value" id="successTotalFiles">0</div>
-                            <div class="success-stat-label">Files Included</div>
-                        </div>
-                        <div class="success-stat-item">
-                            <div class="success-stat-value" id="successTotalLines">0</div>
-                            <div class="success-stat-label">Total Lines</div>
-                        </div>
-                        <div class="success-stat-item">
-                            <div class="success-stat-value" id="successTotalChars">0</div>
-                            <div class="success-stat-label">Characters</div>
-                        </div>
-                        <div class="success-stat-item" id="successChunkStat" style="display: none;">
-                            <div class="success-stat-value" id="successChunkCount">0</div>
-                            <div class="success-stat-label">Chunks</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="success-section" id="successProjectTypesSection" style="display: none;">
-                    <h3>🔧 Project Types Detected</h3>
-                    <div class="success-project-types" id="successProjectTypes">
-                        <!-- Project types will be populated here -->
-                    </div>
-                </div>
-
-                <div class="success-section">
-                    <h3>✨ Features Applied</h3>
-                    <div class="success-features" id="successFeatures">
-                        <div class="success-feature-item">
-                            <span class="success-feature-icon">📝</span>
-                            <span class="success-feature-text">AI pasting instructions added at beginning</span>
-                        </div>
-                        <div class="success-feature-item">
-                            <span class="success-feature-icon">📋</span>
-                            <span class="success-feature-text">File summary added at end</span>
-                        </div>
-                        <div class="success-feature-item" id="successCustomPromptFeature" style="display: none;">
-                            <span class="success-feature-icon">🤖</span>
-                            <span class="success-feature-text">Custom AI prompt included</span>
-                        </div>
-                        <div class="success-feature-item" id="successDockerFeature" style="display: none;">
-                            <span class="success-feature-icon">🐳</span>
-                            <span class="success-feature-text">Docker files auto-included</span>
-                        </div>
-                        <div class="success-feature-item" id="successDependencyFeature" style="display: none;">
-                            <span class="success-feature-icon">🔗</span>
-                            <span class="success-feature-text">File dependencies auto-detected</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="success-section">
-                    <h3>🚀 Next Steps</h3>
-                    <div class="success-next-steps">
-                        <div class="success-step">
-                            <div class="success-step-number">1</div>
-                            <div class="success-step-content">
-                                <strong>Preview Content</strong><br>
-                                <span>Click "Preview Content" to view the generated file</span>
+    <!-- Success Modal -->
+    <div class="modal hidden success-modal" id="successModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✅ File Generated Successfully!</h2>
+                <button class="close-btn" id="closeSuccessModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="success-sections">
+                    <div class="success-section">
+                        <h3>📁 File Information</h3>
+                        <div class="success-info-grid">
+                            <div class="success-info-item">
+                                <label>Filename:</label>
+                                <div class="success-info-value" id="successFilename">-</div>
+                            </div>
+                            <div class="success-info-item">
+                                <label>Directory:</label>
+                                <div class="success-info-value" id="successDirectory">-</div>
+                            </div>
+                            <div class="success-info-item">
+                                <label>Full Path:</label>
+                                <div class="success-info-value" id="successFullPath">-</div>
+                            </div>
+                            <div class="success-info-item">
+                                <label>File Size:</label>
+                                <div class="success-info-value" id="successFileSize">-</div>
                             </div>
                         </div>
-                        <div class="success-step">
-                            <div class="success-step-number">2</div>
-                            <div class="success-step-content">
-                                <strong>Copy or Download</strong><br>
-                                <span>Use the copy/download buttons in the preview modal</span>
+                    </div>
+
+                    <div class="success-section">
+                        <h3>📊 Content Statistics</h3>
+                        <div class="success-stats-grid">
+                            <div class="success-stat-item">
+                                <div class="success-stat-value" id="successTotalFiles">0</div>
+                                <div class="success-stat-label">Files Included</div>
+                            </div>
+                            <div class="success-stat-item">
+                                <div class="success-stat-value" id="successTotalLines">0</div>
+                                <div class="success-stat-label">Total Lines</div>
+                            </div>
+                            <div class="success-stat-item">
+                                <div class="success-stat-value" id="successTotalChars">0</div>
+                                <div class="success-stat-label">Characters</div>
+                            </div>
+                            <div class="success-stat-item" id="successChunkStat" style="display: none;">
+                                <div class="success-stat-value" id="successChunkCount">0</div>
+                                <div class="success-stat-label">Chunks</div>
                             </div>
                         </div>
-                        <div class="success-step">
-                            <div class="success-step-number">3</div>
-                            <div class="success-step-content">
-                                <strong>Share with AI</strong><br>
-                                <span>Paste the content to your AI assistant for analysis</span>
+                    </div>
+
+                    <div class="success-section" id="successProjectTypesSection" style="display: none;">
+                        <h3>🔧 Project Types Detected</h3>
+                        <div class="success-project-types" id="successProjectTypes">
+                            <!-- Project types will be populated here -->
+                        </div>
+                    </div>
+
+                    <div class="success-section">
+                        <h3>✨ Features Applied</h3>
+                        <div class="success-features" id="successFeatures">
+                            <div class="success-feature-item">
+                                <span class="success-feature-icon">📝</span>
+                                <span class="success-feature-text">AI pasting instructions added at beginning</span>
+                            </div>
+                            <div class="success-feature-item">
+                                <span class="success-feature-icon">📋</span>
+                                <span class="success-feature-text">File summary added at end</span>
+                            </div>
+                            <div class="success-feature-item" id="successCustomPromptFeature" style="display: none;">
+                                <span class="success-feature-icon">🤖</span>
+                                <span class="success-feature-text">Custom AI prompt included</span>
+                            </div>
+                            <div class="success-feature-item" id="successDockerFeature" style="display: none;">
+                                <span class="success-feature-icon">🐳</span>
+                                <span class="success-feature-text">Docker files auto-included</span>
+                            </div>
+                            <div class="success-feature-item" id="successDependencyFeature" style="display: none;">
+                                <span class="success-feature-icon">🔗</span>
+                                <span class="success-feature-text">File dependencies auto-detected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="success-section">
+                        <h3>🚀 Next Steps</h3>
+                        <div class="success-next-steps">
+                            <div class="success-step">
+                                <div class="success-step-number">1</div>
+                                <div class="success-step-content">
+                                    <strong>Preview Content</strong><br>
+                                    <span>Click "Preview Content" to view the generated file</span>
+                                </div>
+                            </div>
+                            <div class="success-step">
+                                <div class="success-step-number">2</div>
+                                <div class="success-step-content">
+                                    <strong>Copy or Download</strong><br>
+                                    <span>Use the copy/download buttons in the preview modal</span>
+                                </div>
+                            </div>
+                            <div class="success-step">
+                                <div class="success-step-number">3</div>
+                                <div class="success-step-content">
+                                    <strong>Share with AI</strong><br>
+                                    <span>Paste the content to your AI assistant for analysis</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" id="successOpenFolderBtn">📁 Open Folder</button>
-            <button class="btn btn-secondary" id="successPreviewBtn">👁️ Preview Content</button>
-            <button class="btn btn-primary" id="successCloseBtn">Close</button>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="successOpenFolderBtn">📁 Open Folder</button>
+                <button class="btn btn-secondary" id="successPreviewBtn">👁️ Preview Content</button>
+                <button class="btn btn-primary" id="successCloseBtn">Close</button>
+            </div>
         </div>
     </div>
-</div>
 
     <!-- Settings Modal -->
     <div class="modal hidden settings-modal" id="settingsModal">
@@ -377,13 +378,7 @@
         </div>
     </div>
 
-    <!-- JavaScript Files -->
-    <script src="js/file-explorer.js"></script>
-    <script>
-        // Initialize the file explorer when DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            new FileExplorer();
-        });
-    </script>
+    <!-- JavaScript Modules -->
+    <script type="module" src="js/core/FileExplorer.js"></script>
 </body>
 </html>

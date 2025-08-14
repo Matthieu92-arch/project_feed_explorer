@@ -1281,6 +1281,19 @@ class FileExplorer {
         document.getElementById('confirmModal').classList.add('hidden');
     }
 
+    async directoryExists(dirPath) {
+    try {
+        const pathForAPI = dirPath.startsWith('/') ? dirPath.substring(1) : dirPath;
+        const encodedPath = encodeURIComponent(pathForAPI);
+        const response = await fetch(`/api/exists/${encodedPath}`);
+        const result = await response.json();
+        return result.exists && result.isDirectory;
+    } catch (error) {
+        console.error('Error checking directory existence:', error);
+        return false;
+    }
+}
+
     setupEventListeners() {
         const validateBtn = document.getElementById('validateBtn');
         if (validateBtn) {
@@ -1528,6 +1541,7 @@ class FileExplorer {
     }
 
     async saveSettingsFromModal() {
+    try {
         const defaultPathInput = document.getElementById('defaultPath');
         const includeDockerCheckbox = document.getElementById('includeDockerFiles');
         const customPromptTextarea = document.getElementById('customPrompt');
@@ -1544,7 +1558,10 @@ class FileExplorer {
             }
         };
 
-        if (newSettings.defaultPath && !await this.directoryExists(newSettings.defaultPath)) {
+        console.log('Attempting to save settings:', newSettings);
+
+        // Only check directory existence if a path is provided
+        if (newSettings.defaultPath && !(await this.directoryExists(newSettings.defaultPath))) {
             alert('❌ The specified default path does not exist or is not accessible.');
             return false;
         }
@@ -1552,13 +1569,19 @@ class FileExplorer {
         const oldSettings = { ...this.settings };
         this.settings = { ...this.settings, ...newSettings };
 
+        console.log('Calling saveSettings...');
         const saved = await this.saveSettings();
+        console.log('saveSettings result:', saved);
+
         if (saved) {
+            console.log('Settings saved successfully, updating state...');
+
+            // Handle Docker files changes
             if (oldSettings.includeDockerFiles !== newSettings.includeDockerFiles) {
                 if (newSettings.includeDockerFiles) {
                     await this.scanForDockerFiles();
                 } else {
-                    if (this.dockerFiles) {
+                    if (this.dockerFiles && this.dockerFiles.length > 0) {
                         this.dockerFiles.forEach(dockerFile => {
                             this.selectedFiles.delete(dockerFile.path);
                         });
@@ -1567,34 +1590,41 @@ class FileExplorer {
                 }
             }
 
-            if (djangoCheckbox && reactCheckbox) {
-                const djangoChanged = oldSettings.projectTypes?.django !== newSettings.projectTypes.django;
-                const reactChanged = oldSettings.projectTypes?.react !== newSettings.projectTypes.react;
+            // Handle project type changes
+            const djangoChanged = oldSettings.projectTypes?.django !== newSettings.projectTypes.django;
+            const reactChanged = oldSettings.projectTypes?.react !== newSettings.projectTypes.react;
 
-                if (djangoChanged || reactChanged) {
-                    if (!newSettings.projectTypes.django && oldSettings.projectTypes?.django) {
-                        if (this.djangoFiles) {
-                            this.djangoFiles.forEach(djangoFile => {
-                                this.selectedFiles.delete(djangoFile.path);
-                            });
-                            this.djangoFiles = [];
-                        }
-                    }
-
-                    if (!newSettings.projectTypes.react && oldSettings.projectTypes?.react) {
-                        if (this.reactFiles) {
-                            this.reactFiles.forEach(reactFile => {
-                                this.selectedFiles.delete(reactFile.path);
-                            });
-                            this.reactFiles = [];
-                        }
-                    }
-
-                    if (newSettings.defaultPath &&
-                        (newSettings.projectTypes.django || newSettings.projectTypes.react)) {
-                        await this.scanForProjectFiles();
+            if (djangoChanged || reactChanged) {
+                // Remove old project files if disabled
+                if (!newSettings.projectTypes.django && oldSettings.projectTypes?.django) {
+                    if (this.djangoFiles && this.djangoFiles.length > 0) {
+                        this.djangoFiles.forEach(djangoFile => {
+                            this.selectedFiles.delete(djangoFile.path);
+                        });
+                        this.djangoFiles = [];
                     }
                 }
+
+                if (!newSettings.projectTypes.react && oldSettings.projectTypes?.react) {
+                    if (this.reactFiles && this.reactFiles.length > 0) {
+                        this.reactFiles.forEach(reactFile => {
+                            this.selectedFiles.delete(reactFile.path);
+                        });
+                        this.reactFiles = [];
+                    }
+                }
+
+                // Scan for new project files if enabled and path is set
+                if (newSettings.defaultPath &&
+                    (newSettings.projectTypes.django || newSettings.projectTypes.react)) {
+                    await this.scanForProjectFiles();
+                }
+            }
+
+            // Handle default path change
+            if (oldSettings.defaultPath !== newSettings.defaultPath && newSettings.defaultPath) {
+                console.log('Default path changed, navigating to new path...');
+                await this.navigateToDirectory(newSettings.defaultPath);
             }
 
             this.updateValidateButton();
@@ -1603,10 +1633,16 @@ class FileExplorer {
             alert('✅ Settings saved successfully!');
             return true;
         } else {
+            console.error('Failed to save settings');
             alert('❌ Failed to save settings. Please try again.');
             return false;
         }
+    } catch (error) {
+        console.error('Error in saveSettingsFromModal:', error);
+        alert(`❌ Error saving settings: ${error.message}`);
+        return false;
     }
+}
 
     async scanForDockerFiles() {
         try {
