@@ -1,0 +1,404 @@
+/* Base Layout & Global Styles */
+
+/* Reset default browser styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    background: #0d1117;
+    color: #f0f6fc;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Header */
+.header {
+    background: #21262d;
+    border-bottom: 1px solid #30363d;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header h1 {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.root-path {
+    background: #21262d;
+    color: #7d8590;
+    border: 1px solid #30363d;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.validate-btn {
+    background: #238636;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.validate-btn:hover:not(:disabled) {
+    background: #2ea043;
+}
+
+.validate-btn:disabled {
+    background: #484f58;
+    cursor: not-allowed;
+}
+
+/* Main Container */
+.main-container {
+    display: flex;
+    height: calc(100vh - 73px);
+    position: relative;
+}
+
+.file-content {
+    flex: 1;
+    background: #0d1117;
+    border-right: 1px solid #30363d;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+}
+
+.content-header {
+    background: #161b22;
+    padding: 12px 16px;
+    border-bottom: 1px solid #30363d;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.file-info {
+    font-size: 12px;
+    color: #7d8590;
+}
+
+/* Updated content display for horizontal scrolling */
+.content-display {
+    flex: 1;
+    overflow: auto; /* Allow both horizontal and vertical scrolling */
+    position: relative;
+    background: #0d1117;
+}
+
+.content-display pre {
+    background: #0d1117;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.45;
+    overflow: visible;
+    white-space: pre; /* Changed from pre-wrap to pre for horizontal scrolling */
+    margin: 0;
+    border: none;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    color: #f0f6fc;
+    min-width: max-content; /* Allow content to extend beyond container */
+}
+
+.line-numbers {
+    position: sticky; /* Changed from absolute to sticky */
+    left: 0;
+    top: 0;
+    background: #161b22;
+    color: #7d8590;
+    padding: 16px 8px;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    border-right: 1px solid #30363d;
+    user-select: none;
+    min-width: 50px;
+    text-align: right;
+    z-index: 2;
+    white-space: pre;
+    float: left; /* Make it float so content can flow around it */
+}
+
+.content-with-numbers {
+    padding: 16px;
+    padding-left: 74px; /* Space for line numbers */
+    background: #0d1117;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #f0f6fc;
+    white-space: pre; /* Changed from pre-wrap to pre for horizontal scrolling */
+    margin: 0;
+    border: none;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #7d8590;
+}
+
+/* Error state */
+.error {
+    color: #fc8181;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(252, 129, 129, 0.1) 0%, rgba(245, 101, 101, 0.05) 100%);
+    border: 1px solid #f85149;
+    border-radius: 6px;
+    margin: 8px;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Resizer handle */
+.resizer {
+    width: 5px;
+    background: #30363d;
+    cursor: ew-resize;
+    user-select: none;
+    position: relative;
+    transition: background-color 0.2s;
+    z-index: 10;
+}
+
+.resizer:hover {
+    background: #58a6ff;
+}
+
+.resizer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -2px;
+    right: -2px;
+    bottom: 0;
+    cursor: ew-resize;
+}
+
+/* Updated content display for horizontal scrolling */
+.content-display {
+    flex: 1;
+    overflow: auto; /* Allow both horizontal and vertical scrolling */
+    position: relative;
+    background: #0d1117;
+}
+
+.content-display pre {
+    background: #0d1117;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.45;
+    overflow: visible;
+    white-space: pre; /* Changed from pre-wrap to pre for horizontal scrolling */
+    margin: 0;
+    border: none;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    color: #f0f6fc;
+    min-width: max-content; /* Allow content to extend beyond container */
+}
+
+.line-numbers {
+    position: sticky; /* Changed from absolute to sticky */
+    left: 0;
+    top: 0;
+    background: #161b22;
+    color: #7d8590;
+    padding: 16px 8px;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    border-right: 1px solid #30363d;
+    user-select: none;
+    min-width: 50px;
+    text-align: right;
+    z-index: 2;
+    white-space: pre;
+    float: left; /* Make it float so content can flow around it */
+}
+
+.content-with-numbers {
+    padding: 16px;
+    padding-left: 74px; /* Space for line numbers */
+    background: #0d1117;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #f0f6fc;
+    white-space: pre; /* Changed from pre-wrap to pre for horizontal scrolling */
+    margin: 0;
+    border: none;
+}
+
+/* Scrollbars styling */
+.content-display::-webkit-scrollbar {
+    width: 12px;
+}
+
+.content-display::-webkit-scrollbar-track {
+    background: #21262d;
+}
+
+.content-display::-webkit-scrollbar-thumb {
+    background: #58a6ff;
+}
+
+.content-display::-webkit-scrollbar-thumb:hover {
+    background: #7c3aed;
+}
+
+.content-display::-webkit-scrollbar-corner {
+    background: #21262d;
+}
+
+/* Content Modal Styles */
+.content-modal .modal-header {
+    background: linear-gradient(135deg, #21262d 0%, #161b22 100%);
+    border-bottom: 1px solid #30363d;
+}
+
+.content-modal .modal-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Content Info */
+.content-info {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 16px 20px;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.content-info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.content-info-value {
+    font-weight: 600;
+    color: #58a6ff;
+    font-size: 16px;
+}
+
+.content-info-label {
+    font-size: 11px;
+    color: #7d8590;
+}
+
+#contentInfoItem#chunkInfoItem {
+    border-left: 2px solid #58a6ff;
+    padding-left: 8px;
+    margin-left: 8px;
+    margin-bottom: 8px;
+}
+
+.content-info-item#chunkInfoItem .content-info-value {
+    color: #58a6ff;
+    font-weight: 700;
+}
+
+.content-info-item#chunkInfoItem .content-info-label {
+    color: #58a6ff;
+    font-weight: 600;
+}
+
+/* Success Modal */
+.success-modal .modal-header {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: white;
+}
+
+.success-modal .modal-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .file-explorer {
+        width: 100%;
+        height: 60%;
+        min-height: 200px;
+        border-left: none;
+        border-top: 1px solid #30363d;
+    }
+
+    .file-explorer {
+        width: 100%;
+        height: 40%;
+        min-height: 150px;
+        border-left: none;
+        border-top: 1px solid #30363d;
+    }
+
+    .resizer {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .file-explorer {
+        width: 100%;
+        border-left: none;
+    }
+
+    .success-modal .modal-header h2 {
+        font-size: 18px;
+    }
+
+    .success-stat-value {
+        font-size: 20px;
+    }
+
+    .success-modal .modal-header h2 {
+        font-size: 18px;
+    }
+
+    .success-stat-value {
+        font-size: 20px;
+    }
+}

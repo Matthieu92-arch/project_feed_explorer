@@ -1,0 +1,109 @@
+/* Typography & Text Styles */
+
+/* Base Font Sizes */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+}
+
+/* Headings */
+h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+/* Paragraphs & Lists */
+p {
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+ul, ol {
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* Links */
+a {
+    color: #58a6ff;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #388bfd;
+}
+
+/* Code Blocks */
+code, pre {
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Buttons */
+button {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Form Elements */
+input, textarea {
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+/* Utility Classes */
+.text-center {
+    text-align: center;
+}
+
+.small-text {
+    font-size: 14px;
+    color: #7d8590;
+}
+
+.large-text {
+    font-size: 18px;
+}
+
+/* Highlight Colors */
+.highlight {
+    background-color: #1e3a8a;
+    color: #f8f9fa;
+}
+
+/* Monospace Text */
+.monospace {
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+}
+
+/* Emphasis */
+.italic {
+    font-style: italic;
+}
+
+.bold {
+    font-weight: 700;
+}
+
+/* Small Caps */
+.small-caps {
+    font-variant: small-caps;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
