@@ -62,7 +62,7 @@ export class ChunkManager {
             this.fileChunks = [{
                 index: 0,
                 label: 'a',
-                filename: 'file_a',
+                filename: 'collected_files',
                 content: this.fullContent,
                 size: this.fullContent.length,
                 startPos: 0,
@@ -82,6 +82,7 @@ export class ChunkManager {
                 }
                 return {
                     ...chunk,
+                    filename: `collected_files_part_${chunk.label}`,
                     content: chunkContent,
                     size: chunkContent.length
                 };
