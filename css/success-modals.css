@@ -1,0 +1,331 @@
+/* Success Modal Specific Styles */
+.success-modal .modal-content {
+    max-width: 800px;
+    max-height: 90%;
+}
+
+.success-modal .modal-header {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: white;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.success-modal .modal-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white !important;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    text-shadow: none;
+    opacity: 1;
+}
+
+.success-modal .close-btn {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.success-modal .close-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.success-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.success-section {
+    border-bottom: 1px solid #30363d;
+    padding-bottom: 20px;
+}
+
+.success-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.success-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f0f6fc;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Success Info Grid */
+.success-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.success-info-item {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.success-info-item label {
+    font-size: 12px;
+    color: #7d8590;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.success-info-value {
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #f0f6fc;
+    word-break: break-all;
+    line-height: 1.4;
+}
+
+/* Success Stats Grid */
+.success-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+}
+
+.success-stat-item {
+    text-align: center;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 16px 12px;
+}
+
+.success-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #58a6ff;
+    margin-bottom: 4px;
+}
+
+.success-stat-label {
+    font-size: 11px;
+    color: #7d8590;
+    font-weight: 600;
+}
+
+/* Project Types */
+.success-project-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.success-project-type {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.success-project-type.django {
+    border-color: #7fb069;
+    color: #7fb069;
+}
+
+.success-project-type.react {
+    border-color: #61dafb;
+    color: #61dafb;
+}
+
+.success-project-type.docker {
+    border-color: #0066cc;
+    color: #58a6ff;
+}
+
+/* Features */
+.success-features {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.success-feature-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+}
+
+.success-feature-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.success-feature-text {
+    font-size: 14px;
+    color: #f0f6fc;
+}
+
+/* Next Steps */
+.success-next-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.success-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+}
+
+.success-step-number {
+    background: #238636;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.success-step-content {
+    flex: 1;
+}
+
+.success-step-content strong {
+    color: #f0f6fc;
+    font-size: 14px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.success-step-content span {
+    color: #7d8590;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* Success Modal Footer */
+.success-modal .modal-footer {
+    background: #161b22;
+    border-top: 1px solid #30363d;
+}
+
+.success-modal .btn-primary {
+    background: #238636;
+}
+
+.success-modal .btn-primary:hover {
+    background: #2ea043;
+}
+
+/* Success indicators */
+.success-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #238636;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.success-indicator::before {
+    content: '✓';
+    font-size: 10px;
+}
+
+/* Animation for success modal */
+.success-modal:not(.hidden) .modal-content {
+    animation: successModalSlideIn 0.3s ease-out;
+}
+
+@keyframes successModalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .success-modal .modal-content {
+        width: 95%;
+        max-height: 95%;
+    }
+
+    .success-info-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .success-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .success-step {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .success-project-types {
+        justify-content: center;
+    }
+
+    .success-modal .modal-footer {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .success-modal .modal-footer .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .success-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .success-modal .modal-header h2 {
+        font-size: 18px;
+    }
+
+    .success-section h3 {
+        font-size: 15px;
+    }
+
+    .success-stat-value {
+        font-size: 20px;
+    }
+}

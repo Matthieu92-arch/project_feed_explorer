@@ -1,0 +1,75 @@
+/* Header and navigation styles */
+.header {
+    background: #21262d;
+    border-bottom: 1px solid #30363d;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header h1 {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.root-path {
+    background: #21262d;
+    color: #7d8590;
+    border: 1px solid #30363d;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.validate-btn {
+    background: #238636;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.validate-btn:hover:not(:disabled) {
+    background: #2ea043;
+}
+
+.validate-btn:disabled {
+    background: #484f58;
+    cursor: not-allowed;
+}
+
+.settings-btn {
+    background: #21262d;
+    color: #7d8590;
+    border: 1px solid #30363d;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.settings-btn:hover {
+    background: #30363d;
+    color: #f0f6fc;
+}

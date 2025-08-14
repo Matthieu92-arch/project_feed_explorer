@@ -1,0 +1,443 @@
+/* Enhanced File Tree Styles */
+
+/* File Explorer Container */
+.file-explorer {
+    width: 400px;
+    background: linear-gradient(135deg, #1a1f2e 0%, #16213e 100%);
+    border-left: 1px solid #2d3748;
+    display: flex;
+    flex-direction: column;
+    min-width: 250px;
+    max-width: 800px;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Enhanced Breadcrumb */
+.breadcrumb {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    border-bottom: 1px solid #4a5568;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.breadcrumb::-webkit-scrollbar {
+    height: 4px;
+}
+
+.breadcrumb::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.breadcrumb::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 2px;
+}
+
+.breadcrumb-item {
+    color: #81c784;
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    position: relative;
+}
+
+.breadcrumb-item:hover {
+    background: rgba(129, 199, 132, 0.1);
+    color: #a5d6a7;
+    transform: translateY(-1px);
+}
+
+.breadcrumb-item:active {
+    transform: translateY(0);
+}
+
+.breadcrumb-separator {
+    color: #718096;
+    margin: 0 2px;
+    font-weight: 300;
+}
+
+/* Enhanced Explorer Content */
+.explorer-content {
+    flex: 1;
+    overflow: auto;
+    background: linear-gradient(180deg, #1a1f2e 0%, #161b2a 100%);
+}
+
+.explorer-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.explorer-content::-webkit-scrollbar-track {
+    background: #1a1f2e;
+}
+
+.explorer-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #4a5568 0%, #2d3748 100%);
+    border-radius: 4px;
+    border: 1px solid #2d3748;
+}
+
+.explorer-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #81c784 0%, #66bb6a 100%);
+}
+
+/* File Tree */
+.file-tree {
+    padding: 12px 8px;
+}
+
+/* Enhanced File Items */
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    margin: 2px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    position: relative;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* File Item Wrapper - ensures horizontal layout */
+.file-item-wrapper {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.file-item:hover {
+    background: linear-gradient(135deg, rgba(129, 199, 132, 0.08) 0%, rgba(102, 187, 106, 0.05) 100%);
+    border-color: rgba(129, 199, 132, 0.2);
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.file-item.selected {
+    background: linear-gradient(135deg, rgba(129, 199, 132, 0.15) 0%, rgba(102, 187, 106, 0.1) 100%);
+    border-color: rgba(129, 199, 132, 0.3);
+    box-shadow: 0 0 0 1px rgba(129, 199, 132, 0.2);
+}
+
+.file-item.directory {
+    font-weight: 500;
+}
+
+.file-item.file {
+    font-weight: 400;
+}
+
+/* Enhanced Checkbox */
+.checkbox {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+    cursor: pointer;
+    accent-color: #81c784;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.checkbox:hover {
+    transform: scale(1.1);
+}
+
+.checkbox:checked {
+    filter: drop-shadow(0 0 4px rgba(129, 199, 132, 0.5));
+}
+
+/* Enhanced File Icons - horizontal alignment */
+.file-icon, .directory-arrow {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    position: relative;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+.file-icon:hover, .directory-arrow:hover {
+    transform: scale(1.1);
+    background: rgba(129, 199, 132, 0.1);
+}
+
+/* Directory Arrow Animation */
+.directory-arrow {
+    cursor: pointer;
+    color: #a0aec0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.directory-arrow.expanded {
+    transform: rotate(90deg);
+    color: #81c784;
+}
+
+.directory-arrow:hover {
+    color: #81c784;
+    background: rgba(129, 199, 132, 0.1);
+}
+
+/* File Name Styling - horizontal layout */
+.file-name, .name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #e2e8f0;
+    font-weight: 400;
+    transition: color 0.2s ease;
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+.file-item:hover .file-name,
+.file-item:hover .name {
+    color: #f7fafc;
+}
+
+.file-item.directory .file-name,
+.file-item.directory .name {
+    color: #a5d6a7;
+    font-weight: 500;
+}
+
+.file-item.directory:hover .file-name,
+.file-item.directory:hover .name {
+    color: #c8e6c9;
+}
+
+/* File Size - stays on the same line */
+.file-size {
+    font-size: 11px;
+    color: #718096;
+    margin-left: 12px;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    background: rgba(113, 128, 150, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.file-item:hover .file-size {
+    color: #a0aec0;
+    background: rgba(160, 174, 192, 0.15);
+}
+
+/* Enhanced Children Container */
+.children {
+    margin-left: 32px;
+    border-left: 2px solid rgba(129, 199, 132, 0.2);
+    padding-left: 12px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.children::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, rgba(129, 199, 132, 0.3) 0%, transparent 100%);
+    transition: all 0.3s ease;
+}
+
+.children:hover::before {
+    background: linear-gradient(180deg, rgba(129, 199, 132, 0.5) 0%, rgba(129, 199, 132, 0.1) 100%);
+}
+
+.children.hidden {
+    display: none;
+}
+
+/* Enhanced Dependency Indicator */
+.dependency-indicator {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 8px;
+    margin-left: 8px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+    animation: pulseGlow 2s infinite;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@keyframes pulseGlow {
+    0%, 100% {
+        box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+    }
+    50% {
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.5), 0 0 12px rgba(102, 126, 234, 0.2);
+    }
+}
+
+/* Loading State */
+.loading {
+    color: #81c784;
+    font-style: italic;
+    padding: 20px 16px;
+    text-align: center;
+    font-size: 14px;
+    background: linear-gradient(135deg, rgba(129, 199, 132, 0.05) 0%, transparent 100%);
+    border-radius: 8px;
+    margin: 8px;
+    border: 1px dashed rgba(129, 199, 132, 0.3);
+    animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Error State */
+.error {
+    color: #fc8181;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(252, 129, 129, 0.1) 0%, rgba(245, 101, 101, 0.05) 100%);
+    border: 1px solid rgba(252, 129, 129, 0.3);
+    border-radius: 8px;
+    margin: 8px;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(252, 129, 129, 0.2);
+}
+
+/* File Type Specific Styling */
+.file-item[data-extension="py"] .file-icon {
+    color: #4caf50;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="js"] .file-icon,
+.file-item[data-extension="jsx"] .file-icon,
+.file-item[data-extension="ts"] .file-icon,
+.file-item[data-extension="tsx"] .file-icon {
+    color: #ffc107;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="json"] .file-icon {
+    color: #ff9800;
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="md"] .file-icon {
+    color: #2196f3;
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, transparent 100%);
+}
+
+.file-item[data-extension="docker"] .file-icon {
+    color: #00bcd4;
+    background: linear-gradient(135deg, rgba(0, 188, 212, 0.1) 0%, transparent 100%);
+}
+
+/* Hover Effects for Icons */
+.file-item:hover .file-icon {
+    transform: scale(1.1) rotate(5deg);
+    filter: brightness(1.2);
+}
+
+.file-item:hover .directory-arrow {
+    transform: scale(1.1);
+}
+
+/* Selection Animation */
+.file-item.selecting {
+    animation: selectPulse 0.3s ease-out;
+}
+
+@keyframes selectPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02) translateX(8px);
+        background: rgba(129, 199, 132, 0.2);
+    }
+    100% {
+        transform: scale(1) translateX(4px);
+    }
+}
+
+/* Accessibility improvements */
+.file-item:focus-visible {
+    outline: 2px solid #81c784;
+    outline-offset: 2px;
+}
+
+.checkbox:focus-visible {
+    outline: 2px solid #81c784;
+    outline-offset: 2px;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .file-item {
+        border-width: 2px;
+    }
+    
+    .file-item:hover {
+        border-color: #81c784;
+    }
+    
+    .dependency-indicator {
+        border-width: 2px;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .file-item,
+    .file-icon,
+    .directory-arrow,
+    .checkbox,
+    .dependency-indicator {
+        transition: none;
+    }
+    
+    .dependency-indicator {
+        animation: none;
+    }
+    
+    .loading {
+        animation: none;
+    }
+    
+    .file-item:hover {
+        transform: none;
+    }
+}
