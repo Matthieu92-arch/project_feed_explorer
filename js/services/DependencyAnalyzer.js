@@ -1,4 +1,4 @@
-// js/services/DependencyAnalyzer.js (Add missing method)
+// js/services/DependencyAnalyzer.js (Fixed to skip NPM packages)
 export class DependencyAnalyzer {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
@@ -15,6 +15,12 @@ export class DependencyAnalyzer {
             this.fileExplorer.fileDependencies.set(file.path, new Set());
 
             for (const dep of dependencies) {
+                // FIXED: Skip NPM packages - only process local/relative imports
+                if (this.isNpmPackage(dep.relativePath)) {
+                    console.log(`📦 Skipping NPM package: ${dep.relativePath}`);
+                    continue;
+                }
+
                 const resolvedPaths = await this.resolvePath(file.path, dep);
                 resolvedPaths.forEach(depPath => {
                     this.fileExplorer.fileDependencies.get(file.path).add(depPath);
@@ -37,7 +43,23 @@ export class DependencyAnalyzer {
         }
     }
 
-    // ADDED: Missing method
+    // NEW: Method to identify NPM packages vs local imports
+    isNpmPackage(importPath) {
+        // Local imports start with ./ or ../
+        if (importPath.startsWith('./') || importPath.startsWith('../')) {
+            return false;
+        }
+        
+        // Absolute paths starting with / are usually local
+        if (importPath.startsWith('/')) {
+            return false;
+        }
+        
+        // Everything else is considered an NPM package
+        // This includes: 'react', 'react-router-dom', 'lucide-react', '@babel/core', etc.
+        return true;
+    }
+
     addDependencyIndicator(depPath, ownerPath) {
         // Find the file item in the DOM and add dependency indicator
         const item = document.querySelector(`[data-path="${depPath}"]`);
@@ -56,7 +78,6 @@ export class DependencyAnalyzer {
         }
     }
 
-    // ADDED: Method to remove dependencies
     async removeDependencies(filePath) {
         const dependencies = this.fileExplorer.fileDependencies.get(filePath);
         if (dependencies) {
@@ -80,7 +101,6 @@ export class DependencyAnalyzer {
         }
     }
 
-    // ADDED: Method to remove dependency indicators
     removeDependencyIndicator(depPath) {
         const item = document.querySelector(`[data-path="${depPath}"]`);
         if (item) {
@@ -143,6 +163,12 @@ export class DependencyAnalyzer {
             const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
             const { relativePath, importedNames } = dependencyInfo;
 
+            // FIXED: Only process local imports
+            if (this.isNpmPackage(relativePath)) {
+                console.log(`📦 Skipping NPM package resolution: ${relativePath}`);
+                return [];
+            }
+
             let resolvedPath;
 
             if (relativePath.startsWith('./')) {
@@ -159,8 +185,13 @@ export class DependencyAnalyzer {
                     }
                 }
                 resolvedPath = pathParts.join('/');
+            } else if (relativePath.startsWith('/')) {
+                // Absolute local path
+                resolvedPath = relativePath;
             } else {
-                resolvedPath = currentDir + '/' + relativePath;
+                // This shouldn't happen since we filter NPM packages above
+                console.log(`⚠️ Unexpected import path format: ${relativePath}`);
+                return [];
             }
 
             const resolvedPaths = new Set();
@@ -175,6 +206,7 @@ export class DependencyAnalyzer {
             if (this.hasNoExtension(relativePath)) {
                 const extensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
 
+                // First, try the path as a file with extensions
                 for (const ext of extensions) {
                     const pathWithExt = resolvedPath + ext;
                     foundPath = await this.checkFileExists(pathWithExt);
@@ -183,7 +215,7 @@ export class DependencyAnalyzer {
                     }
                 }
 
-                // Try index files
+                // Then, try as a directory with index files
                 for (const ext of extensions) {
                     const indexPath = resolvedPath + '/index' + ext;
                     foundPath = await this.checkFileExists(indexPath);
@@ -191,6 +223,23 @@ export class DependencyAnalyzer {
                         resolvedPaths.add(foundPath);
                     }
                 }
+
+                // NEW: If it's a directory, also try to find all files in that directory
+                // This handles cases like '../components/reports' where there might be multiple component files
+                try {
+                    const directoryFiles = await this.findFilesInDirectory(resolvedPath);
+                    for (const dirFile of directoryFiles) {
+                        resolvedPaths.add(dirFile);
+                    }
+                } catch (error) {
+                    // Directory doesn't exist or can't be read, that's okay
+                }
+            }
+
+            if (resolvedPaths.size > 0) {
+                console.log(`✅ Resolved local dependency: ${relativePath} -> [${Array.from(resolvedPaths).map(p => p.split('/').pop()).join(', ')}]`);
+            } else {
+                console.log(`⚠️ Could not resolve local dependency: ${relativePath}`);
             }
 
             return Array.from(resolvedPaths);
@@ -202,6 +251,65 @@ export class DependencyAnalyzer {
 
     async checkFileExists(testPath) {
         return await this.fileExplorer.fileManager.checkFileExists(testPath) ? testPath : null;
+    }
+
+    // NEW: Method to find component files in a directory (for imports like '../components/reports')
+    async findFilesInDirectory(directoryPath) {
+        const foundFiles = [];
+        
+        try {
+            // Use the file manager to check if this is a directory and get its contents
+            const isDirectory = await this.fileExplorer.fileManager.directoryExists(directoryPath);
+            if (!isDirectory) {
+                return foundFiles;
+            }
+
+            // Get directory contents via the API
+            const pathWithoutLeadingSlash = directoryPath.startsWith('/') ? directoryPath.substring(1) : directoryPath;
+            const pathSegments = pathWithoutLeadingSlash.split('/');
+            const encodedSegments = pathSegments.map(segment => encodeURIComponent(segment));
+            const encodedPath = encodedSegments.join('/');
+            
+            console.log(`🔍 Checking directory for components: ${directoryPath}`);
+            
+            const response = await fetch(`/api/directory/${encodedPath}`);
+            if (!response.ok) {
+                return foundFiles;
+            }
+            
+            const files = await response.json();
+            
+            // Filter for relevant component files
+            const componentExtensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte'];
+            const componentFiles = files.filter(file => 
+                file.type === 'file' && 
+                componentExtensions.some(ext => file.name.endsWith(ext)) &&
+                !file.name.includes('.test.') &&
+                !file.name.includes('.spec.')
+            );
+
+            for (const file of componentFiles) {
+                foundFiles.push(file.path);
+                console.log(`📁 Found component file: ${file.name}`);
+            }
+
+            // Also check for index file that might export multiple components
+            const indexFiles = files.filter(file => 
+                file.type === 'file' && 
+                file.name.startsWith('index.') &&
+                componentExtensions.some(ext => file.name.endsWith(ext))
+            );
+
+            for (const indexFile of indexFiles) {
+                foundFiles.push(indexFile.path);
+                console.log(`📇 Found index file: ${indexFile.name}`);
+            }
+
+        } catch (error) {
+            console.log(`⚠️ Could not read directory ${directoryPath}: ${error.message}`);
+        }
+
+        return foundFiles;
     }
 
     hasNoExtension(str) {

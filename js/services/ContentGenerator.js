@@ -150,36 +150,110 @@ export class ContentGenerator {
         }
     }
 
+    // Fixed extractImports method for ContentGenerator.js
+// Replace the existing extractImports method with this improved version
+
     extractImports(content, filePath) {
         const imports = [];
         const extension = filePath.split('.').pop().toLowerCase();
 
         // JavaScript/TypeScript imports
         if (['js', 'jsx', 'ts', 'tsx'].includes(extension)) {
-            // ES6 imports
+            // Enhanced regex patterns to handle multi-line imports and better whitespace handling
             const importRegexes = [
-                /import\s+{([^}]+)}\s+from\s+['"]([^'"]+)['"]/g,
-                /import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g,
-                /import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g,
-                /import\s+['"]([^'"]+)['"]/g,
-                /const\s+{([^}]+)}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-                /const\s+(\w+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+                // Multi-line destructured imports: import { ... } from '...'
+                /import\s*{\s*([^}]*)\s*}\s*from\s+['"]([^'"]+)['"];?/gs,
+                // Default imports: import Something from '...'
+                /import\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g,
+                // Namespace imports: import * as Something from '...'
+                /import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g,
+                // Side-effect imports: import '...'
+                /import\s+['"]([^'"]+)['"];?/g,
+                // Dynamic imports: import('...')
+                /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+                // CommonJS destructured require: const { ... } = require('...')
+                /const\s*{\s*([^}]*)\s*}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\);?/gs,
+                // CommonJS default require: const Something = require('...')
+                /const\s+(\w+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\);?/g
             ];
 
-            importRegexes.forEach(regex => {
+            importRegexes.forEach((regex, regexIndex) => {
                 let match;
                 while ((match = regex.exec(content)) !== null) {
-                    imports.push({
-                        type: regex.source.includes('import') ? 'import' : 'require',
-                        module: match[2] || match[1],
-                        items: match[1] ? match[1].split(',').map(s => s.trim()) : [],
-                        line: this.getLineNumber(content, match.index)
-                    });
+                    let importedNames = [];
+                    let modulePath = '';
+
+                    if (regexIndex === 0) {
+                        // Multi-line destructured imports: import { ... } from '...'
+                        const destructuredItems = match[1];
+                        modulePath = match[2];
+                        
+                        // Clean up the destructured items and split them properly
+                        importedNames = destructuredItems
+                            .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+                            .split(',')
+                            .map(item => item.trim())
+                            .filter(item => item.length > 0)
+                            .map(item => {
+                                // Handle aliased imports like "ChartCard as Chart"
+                                if (item.includes(' as ')) {
+                                    return item.split(' as ')[0].trim();
+                                }
+                                return item;
+                            });
+                            
+                    } else if (regexIndex === 1) {
+                        // Default imports
+                        importedNames = [match[1]];
+                        modulePath = match[2];
+                    } else if (regexIndex === 2) {
+                        // Namespace imports
+                        importedNames = [match[1]];
+                        modulePath = match[2];
+                    } else if (regexIndex === 3 || regexIndex === 4) {
+                        // Side-effect imports or dynamic imports
+                        modulePath = match[1];
+                        importedNames = [];
+                    } else if (regexIndex === 5) {
+                        // CommonJS destructured require
+                        const destructuredItems = match[1];
+                        modulePath = match[2];
+                        
+                        importedNames = destructuredItems
+                            .replace(/\s+/g, ' ')
+                            .split(',')
+                            .map(item => item.trim())
+                            .filter(item => item.length > 0)
+                            .map(item => {
+                                if (item.includes(' as ')) {
+                                    return item.split(' as ')[0].trim();
+                                }
+                                return item;
+                            });
+                            
+                    } else if (regexIndex === 6) {
+                        // CommonJS default require
+                        importedNames = [match[1]];
+                        modulePath = match[2];
+                    }
+
+                    // Only add if we have a valid module path
+                    if (modulePath) {
+                        imports.push({
+                            type: regex.source.includes('import') ? 'import' : 'require',
+                            module: modulePath,
+                            items: importedNames,
+                            line: this.getLineNumber(content, match.index),
+                            originalStatement: match[0].replace(/\s+/g, ' ').trim()
+                        });
+                    }
                 }
+                // Reset regex lastIndex to ensure we catch all matches
+                regex.lastIndex = 0;
             });
         }
 
-        // Python imports
+        // Python imports (existing logic)
         if (extension === 'py') {
             const pythonImportRegexes = [
                 /from\s+([^\s]+)\s+import\s+([^\n]+)/g,
@@ -196,11 +270,21 @@ export class ContentGenerator {
                         line: this.getLineNumber(content, match.index)
                     });
                 }
+                regex.lastIndex = 0;
+            });
+        }
+
+        // Log debug info for multi-line imports
+        const multiLineImports = imports.filter(imp => imp.items && imp.items.length > 3);
+        if (multiLineImports.length > 0) {
+            console.log(`🔍 Found ${multiLineImports.length} multi-line imports in ${filePath.split('/').pop()}:`);
+            multiLineImports.forEach(imp => {
+                console.log(`  └─ ${imp.module}: [${imp.items.join(', ')}]`);
             });
         }
 
         return imports;
-    }
+        }
 
     extractExports(content, filePath) {
         const exports = [];
