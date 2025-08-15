@@ -157,7 +157,6 @@ app.get('/api/exists/:path(*)', async (req, res) => {
         // If the path doesn't start with / or a drive letter, it might be an absolute path
         // that had its leading slash removed for the API call
         if (!path.isAbsolute(filePath) && !filePath.match(/^[A-Za-z]:/)) {
-            // Try as absolute path first (add back the leading slash for Unix paths)
             filePath = '/' + filePath;
         }
 

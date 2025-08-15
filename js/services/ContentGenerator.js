@@ -679,6 +679,24 @@ export class ContentGenerator {
         output += '• 🧠 Smart content filtering to focus on essential code\n';
         output += '• 📋 Comprehensive project metadata for context understanding\n\n';
 
+        output += 'CODE OUTPUT REQUIREMENTS\n';
+        output += '-'.repeat(40) + '\n';
+        output += 'IMPORTANT: When writing code or creating files, you MUST:\n';
+        output += '• ✅ Always use code artifacts for any code/file output\n';
+        output += '• ✅ Only write code when the user specifically requests it\n';
+        output += '• ✅ Create separate artifacts for different files/components\n';
+        output += '• ✅ Use appropriate file extensions and naming conventions\n';
+        output += '• ❌ DO NOT write code for general analysis or discussion\n';
+        output += '• ❌ DO NOT provide code unless explicitly asked\n';
+        output += '• ❌ DO NOT include code snippets in regular text responses\n\n';
+        output += 'Code should only be provided when the user makes requests like:\n';
+        output += '- "Write a function to..."\n';
+        output += '- "Create a component for..."\n';
+        output += '- "Generate a script that..."\n';
+        output += '- "Build a [specific feature]..."\n';
+        output += '- "Fix this bug in..."\n';
+        output += '- "Refactor this code..."\n\n';
+
         if (this.fileExplorer.settingsManager.settings.customPrompt?.trim()) {
             output += 'CUSTOM ANALYSIS INSTRUCTIONS\n';
             output += '-'.repeat(40) + '\n';
@@ -691,7 +709,9 @@ export class ContentGenerator {
         output += '2. Follow import/dependency chains to understand data flow\n';
         output += '3. Review architectural patterns for design understanding\n';
         output += '4. Examine file relationships to grasp system interactions\n';
-        output += '5. Use the technology stack info for context-aware suggestions\n\n';
+        output += '5. Use the technology stack info for context-aware suggestions\n';
+        output += '6. Provide analysis and recommendations WITHOUT writing code\n';
+        output += '7. Only write code when specifically requested by the user\n\n';
 
         return output;
     }

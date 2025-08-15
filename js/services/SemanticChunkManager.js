@@ -773,6 +773,11 @@ export class SemanticChunkManager {
         }
         
         wrappedContent += `\n${chunk.aiInstructions}\n\n`;
+        wrappedContent += `CODE OUTPUT RULES:\n`;
+        wrappedContent += `- Only write code when user explicitly requests it\n`;
+        wrappedContent += `- Always use code artifacts for any code/file output\n`;
+        wrappedContent += `- Do NOT write code for analysis or general questions\n\n`;
+        
         wrappedContent += `CHUNK CONTENT:\n`;
         wrappedContent += `${'='.repeat(60)}\n\n`;
         
