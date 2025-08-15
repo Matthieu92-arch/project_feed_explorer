@@ -20,7 +20,7 @@
     font-size: 13px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
     overflow-x: auto;
     white-space: nowrap;
     font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
@@ -44,7 +44,7 @@
     color: #81c784;
     cursor: pointer;
     white-space: nowrap;
-    padding: 4px 8px;
+    padding: 4px 0px;
     border-radius: 4px;
     transition: all 0.2s ease;
     font-weight: 500;

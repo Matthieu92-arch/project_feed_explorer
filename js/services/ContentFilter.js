@@ -1,4 +1,4 @@
-// js/services/ContentFilter.js (Fixed to be less aggressive)
+// js/services/ContentFilter.js (Fixed to properly exclude directories)
 export class ContentFilter {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
@@ -141,16 +141,30 @@ export class ContentFilter {
     }
 
     shouldExcludeFile(filePath) {
+        // CRITICAL FIX: Check if this is a directory first
+        const item = document.querySelector(`[data-path="${filePath}"]`);
+        if (item && item.dataset.type === 'directory') {
+            console.log(`🚫 Excluding directory: ${filePath}`);
+            return true; // Always exclude directories
+        }
+
         // Get just the filename and relative path for checking
         const fileName = filePath.split('/').pop();
         const relativePath = filePath.replace(this.fileExplorer.currentPath, '').replace(/^\//, '');
         
         console.log(`🔍 Checking exclusion for: ${fileName} (${relativePath})`);
         
-        // REMOVED: DOM check that was causing issues
         // Just check if it's a valid filename
         if (!fileName || fileName.trim() === '') {
             console.log(`🚫 Excluding - no filename: ${filePath}`);
+            return true;
+        }
+
+        // Additional check: if filename has no extension and doesn't match known files, likely a directory
+        const knownFilesWithoutExtension = ['Dockerfile', 'Makefile', 'README', 'LICENSE', 'CHANGELOG', 'Pipfile', 'Gemfile'];
+        if (!fileName.includes('.') && !knownFilesWithoutExtension.some(known => 
+            fileName.toLowerCase().includes(known.toLowerCase()))) {
+            console.log(`🚫 Excluding - likely directory (no extension): ${fileName}`);
             return true;
         }
         
@@ -222,11 +236,11 @@ export class ContentFilter {
                 continue;
             }
             
-            // Check if it should be excluded
+            // Check if it should be excluded (including directory check)
             if (this.shouldExcludeFile(filePath)) {
                 excludedFiles.push({
                     path: filePath,
-                    reason: 'Excluded by filter rules'
+                    reason: 'Excluded by filter rules (likely directory or unwanted file)'
                 });
                 continue;
             }
