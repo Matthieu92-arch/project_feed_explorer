@@ -1111,6 +1111,7 @@ export class ContentGenerator {
     }
 
     async saveToServer(content) {
+        console.log('Saving content to server...');
         try {
             const response = await fetch('/api/save', {
                 method: 'POST',

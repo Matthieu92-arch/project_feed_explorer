@@ -141,9 +141,6 @@ export class FileManager {
             const encodedSegments = pathSegments.map(segment => encodeURIComponent(segment));
             const encodedPath = encodedSegments.join('/');
             
-            console.log('Original path:', filePath);
-            console.log('Encoded path:', encodedPath);
-            
             const response = await fetch(`/api/file/${encodedPath}`);
 
             if (!response.ok) {

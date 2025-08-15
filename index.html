@@ -1,705 +1,628 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local File Explorer</title>
-    
-    <!-- Modular CSS imports -->
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/header.css">
-    <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/file-explorer.css">
-    <link rel="stylesheet" href="css/modals.css">
-    <link rel="stylesheet" href="css/success-modals.css">
-    <link rel="stylesheet" href="css/project-files.css">
-    <link rel="stylesheet" href="css/chunking.css">
-    
-    <!-- Inline styles for chunk size control -->
-    <style>
-        /* Enhanced Content Modal with Chunk Size Control */
-        .content-modal .modal-body {
-            padding: 0;
-            overflow: hidden;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-        }
-
-        /* Chunk Size Control Styles */
-        .chunk-size-control {
-            background: #1c2526;
-            border: 1px solid #2d3748;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin: 16px 20px;
-            margin-bottom: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .chunk-size-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-
-        .chunk-size-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #f0f6fc;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .chunk-size-info {
-            font-size: 12px;
-            color: #7d8590;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .chunk-size-slider-container {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .chunk-size-slider {
-            flex: 1;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 8px;
-            background: #21262d;
-            border-radius: 4px;
-            outline: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border: 1px solid #30363d;
-        }
-
-        .chunk-size-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
-            border: 2px solid #0d1117;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
-        }
-
-        .chunk-size-slider::-webkit-slider-thumb:hover {
-            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
-            box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
-            transform: scale(1.1);
-        }
-
-        .chunk-size-slider::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
-            border: 2px solid #0d1117;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
-        }
-
-        .chunk-size-slider::-moz-range-thumb:hover {
-            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
-            box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
-            transform: scale(1.1);
-        }
-
-        .chunk-size-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            color: #7d8590;
-            margin-top: 4px;
-            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
-        }
-
-        .chunk-size-value {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 8px 12px;
-            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
-            font-size: 13px;
-            color: #58a6ff;
-            font-weight: 600;
-            min-width: 100px;
-            text-align: center;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .chunk-size-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-            gap: 12px;
-            margin-top: 8px;
-        }
-
-        .chunk-size-stat {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 8px;
-            text-align: center;
-        }
-
-        .chunk-size-stat-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #58a6ff;
-            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
-        }
-
-        .chunk-size-stat-label {
-            font-size: 10px;
-            color: #7d8590;
-            margin-top: 2px;
-        }
-
-        .chunk-size-applying {
-            opacity: 0.6;
-            pointer-events: none;
-            position: relative;
-        }
-
-        .chunk-size-applying::after {
-            content: '⚡ Applying changes...';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #21262d;
-            color: #58a6ff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            z-index: 10;
-        }
-
-        /* Enhanced chunk navigation with size info */
-        .chunk-navigation.with-size-control {
-            margin-top: 0;
-            border-top: 1px solid #2d3748;
-        }
-
-        .chunk-nav-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .chunk-info {
-            font-size: 12px;
-            color: #7d8590;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .chunk-size-badge {
-            background: #1f6feb;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-        }
-
-        /* Responsive design for chunk size control */
-        @media (max-width: 768px) {
-            .chunk-size-control {
-                margin: 12px 16px;
-                margin-bottom: 0;
-                padding: 12px 16px;
-            }
-            
-            .chunk-size-slider-container {
-                flex-direction: column;
-                gap: 12px;
-            }
-            
-            .chunk-size-stats {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
-            
-            .chunk-size-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .chunk-size-stats {
-                grid-template-columns: 1fr;
-            }
-            
-            .chunk-size-info {
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local File Explorer</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/header.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/file-explorer.css">
+  <link rel="stylesheet" href="css/modals.css">
+  <link rel="stylesheet" href="css/success-modals.css">
+  <link rel="stylesheet" href="css/project-files.css">
+  <link rel="stylesheet" href="css/chunking.css">
+  <style>
+  /* Enhanced Content Modal with Chunk Size Control */
+  .content-modal .modal-body {
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  }
+  /* Chunk Size Control Styles */
+  .chunk-size-control {
+  background: #1c2526;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 20px;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  .chunk-size-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  }
+  .chunk-size-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f6fc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  .chunk-size-info {
+  font-size: 12px;
+  color: #7d8590;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  }
+  .chunk-size-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  }
+  .chunk-size-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: #21262d;
+  border-radius: 4px;
+  outline: none;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid #30363d;
+  }
+  .chunk-size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+  border: 2px solid #0d1117;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
+  }
+  .chunk-size-slider::-webkit-slider-thumb:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
+  transform: scale(1.1);
+  }
+  .chunk-size-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+  border: 2px solid #0d1117;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(88, 166, 255, 0.3);
+  }
+  .chunk-size-slider::-moz-range-thumb:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
+  transform: scale(1.1);
+  }
+  .chunk-size-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #7d8590;
+  margin-top: 4px;
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  }
+  .chunk-size-value {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  color: #58a6ff;
+  font-weight: 600;
+  min-width: 100px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+  .chunk-size-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+  }
+  .chunk-size-stat {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  }
+  .chunk-size-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #58a6ff;
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  }
+  .chunk-size-stat-label {
+  font-size: 10px;
+  color: #7d8590;
+  margin-top: 2px;
+  }
+  .chunk-size-applying {
+  opacity: 0.6;
+  pointer-events: none;
+  position: relative;
+  }
+  .chunk-size-applying::after {
+  content: '⚡ Applying changes...';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #21262d;
+  color: #58a6ff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  }
+  /* Enhanced chunk navigation with size info */
+  .chunk-navigation.with-size-control {
+  margin-top: 0;
+  border-top: 1px solid #2d3748;
+  }
+  .chunk-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  }
+  .chunk-info {
+  font-size: 12px;
+  color: #7d8590;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  .chunk-size-badge {
+  background: #1f6feb;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  }
+  /* Responsive design for chunk size control */
+  @media (max-width: 768px) {
+  .chunk-size-control {
+  margin: 12px 16px;
+  margin-bottom: 0;
+  padding: 12px 16px;
+  }
+  .chunk-size-slider-container {
+  flex-direction: column;
+  gap: 12px;
+  }
+  .chunk-size-stats {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  }
+  .chunk-size-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  }
+  }
+  @media (max-width: 480px) {
+  .chunk-size-stats {
+  grid-template-columns: 1fr;
+  }
+  .chunk-size-info {
+  flex-wrap: wrap;
+  gap: 8px;
+  }
+  }
+  </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-left">
-            <h1>🗂️ Local File Explorer</h1>
-            <div class="root-path" id="rootPath">
-                <span id="currentPath">Loading...</span>
-                <button class="btn" onclick="window.fileExplorer.changeRootDirectory()" style="margin-left: 8px; padding: 2px 6px; font-size: 10px;">📁 Browse</button>
-            </div>
-        </div>
-        <div class="header-right">
-            <div class="server-info">Web Server Mode</div>
-            <button class="settings-btn" id="settingsBtn">
-                ⚙️ Settings
-            </button>
-            <button class="validate-btn" id="validateBtn" disabled>
-                Validate Selection (<span id="selectedCount">0</span>)
-            </button>
-        </div>
-    </div>
-
-    <div class="main-container">
-        <div class="file-content">
-            <div class="content-header" id="contentHeader">
-                <span>Select a file to view its content</span>
-                <span class="file-info" id="fileInfo"></span>
-            </div>
-            <div class="content-display" id="contentDisplay">
-                <div class="empty-state">
-                    <p>📁 No file selected</p>
-                    <p style="font-size: 12px; margin-top: 8px;">Click on a file in the explorer to view its content</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="resizer" id="resizer">
-            <div class="resize-indicator" id="resizeIndicator">Drag to resize</div>
-        </div>
-
-        <div class="file-explorer" id="fileExplorer">
-            <div class="breadcrumb" id="breadcrumb">
-                <!-- Breadcrumb will be populated here -->
-            </div>
-            <div class="explorer-content">
-                <div class="file-tree" id="fileTree">
-                    <div class="loading">🔄 Loading files...</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirmation Modal -->
-    <div class="modal hidden" id="confirmModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Confirm File Selection</h2>
-                <button class="close-btn" id="closeModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="summary">
-                    <div class="summary-grid">
-                        <div class="summary-item">
-                            <div class="summary-value" id="totalFiles">0</div>
-                            <div class="summary-label">Files</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-value" id="totalLines">0</div>
-                            <div class="summary-label">Lines</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-value" id="totalSize">0 KB</div>
-                            <div class="summary-label">Size</div>
-                        </div>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                </div>
-                <div><strong>Selected files:</strong></div>
-                <div class="file-list" id="selectedFilesList">
-                    <!-- Selected files will be listed here -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-                <button class="btn btn-primary" id="confirmBtn">Generate Content</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Content Preview Modal with Chunking Support and Dynamic Chunk Size Control -->
-    <div class="modal content-modal hidden" id="contentModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>📄 Generated File Content</h2>
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <button class="copy-btn chunk-copy" id="copyContentBtn">📋 Copy Current</button>
-                <button class="btn btn-secondary" id="downloadAllChunks" style="display: none;">💾 Download All</button>
-                <button class="close-btn" id="closeContentModal">&times;</button>
-            </div>
-        </div>
-        <div class="modal-body">
-            <div class="content-info">
-                <div class="content-info-item">
-                    <div class="content-info-value" id="contentFileCount">0</div>
-                    <div class="content-info-label">Files</div>
-                </div>
-                <div class="content-info-item">
-                    <div class="content-info-value" id="contentLineCount">0</div>
-                    <div class="content-info-label">Lines</div>
-                </div>
-                <div class="content-info-item">
-                    <div class="content-info-value" id="contentCharCount">0</div>
-                    <div class="content-info-label">Characters</div>
-                </div>
-                <div class="content-info-item">
-                    <div class="content-info-value" id="contentSizeCount">0 KB</div>
-                    <div class="content-info-label">Size</div>
-                </div>
-                <div class="content-info-item" id="chunkInfoItem" style="display: none;">
-                    <div class="content-info-value" id="currentChunkInfo">1/1</div>
-                    <div class="content-info-label">Chunk</div>
-                </div>
-            </div>
-                <!-- Chunk Size Control will be inserted here dynamically -->
-                <!-- Chunk Navigation will be inserted here dynamically -->
-                <div class="content-display-modal" id="contentDisplayModal">
-                    <pre id="generatedContent"></pre>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="downloadContentBtn">💾 Download Current</button>
-                <button class="btn btn-secondary" id="copyAllChunksBtn" style="display: none;">📋 Copy All Chunks</button>
-                <button class="btn btn-primary" id="closeContentModal2">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Success Modal -->
-    <div class="modal hidden success-modal" id="successModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>✅ AI-Optimized Content Generated Successfully!</h2>
-                <button class="close-btn" id="closeSuccessModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="success-sections">
-                    <div class="success-section">
-                        <h3>📁 Content Information</h3>
-                        <div class="success-info-grid">
-                            <div class="success-info-item">
-                                <label>Filename:</label>
-                                <div class="success-info-value" id="successFilename">-</div>
-                            </div>
-                            <div class="success-info-item">
-                                <label>Directory:</label>
-                                <div class="success-info-value" id="successDirectory">-</div>
-                            </div>
-                            <div class="success-info-item">
-                                <label>Full Path:</label>
-                                <div class="success-info-value" id="successFullPath">-</div>
-                            </div>
-                            <div class="success-info-item">
-                                <label>Content Size:</label>
-                                <div class="success-info-value" id="successFileSize">-</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="success-section">
-                        <h3>📊 Content Statistics</h3>
-                        <div class="success-stats-grid">
-                            <div class="success-stat-item">
-                                <div class="success-stat-value" id="successTotalFiles">0</div>
-                                <div class="success-stat-label">Files Included</div>
-                            </div>
-                            <div class="success-stat-item">
-                                <div class="success-stat-value" id="successTotalLines">0</div>
-                                <div class="success-stat-label">Total Lines</div>
-                            </div>
-                            <div class="success-stat-item">
-                                <div class="success-stat-value" id="successTotalChars">0</div>
-                                <div class="success-stat-label">Characters</div>
-                            </div>
-                            <div class="success-stat-item" id="successChunkStat" style="display: none;">
-                                <div class="success-stat-value" id="successChunkCount">0</div>
-                                <div class="success-stat-label">Chunks</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- NEW: Entry Points Section -->
-                    <div class="success-section" id="successEntryPointsSection">
-                        <h3>🎯 Entry Points Identified</h3>
-                        <div class="success-entry-points" id="successEntryPoints">
-                            <!-- Entry points will be populated here -->
-                        </div>
-                    </div>
-
-                    <!-- NEW: Architecture Analysis Section -->
-                    <div class="success-section" id="successArchitectureSection">
-                        <h3>🏗️ Architecture Analysis</h3>
-                        <div class="success-architecture-grid" id="successArchitecture">
-                            <!-- Architecture analysis will be populated here -->
-                        </div>
-                    </div>
-
-                    <div class="success-section" id="successProjectTypesSection" style="display: none;">
-                        <h3>🔧 Project Types Detected</h3>
-                        <div class="success-project-types" id="successProjectTypes">
-                            <!-- Project types will be populated here -->
-                        </div>
-                    </div>
-
-                    <div class="success-section">
-                        <h3>✨ AI Optimization Features Applied</h3>
-                        <div class="success-features" id="successFeatures">
-                            <div class="success-feature-item" id="successEntryPointFeature" style="display: flex;">
-                                <span class="success-feature-icon">🎯</span>
-                                <span class="success-feature-text">Entry point identification and prioritization for systematic analysis</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successRelationshipFeature" style="display: flex;">
-                                <span class="success-feature-icon">🔗</span>
-                                <span class="success-feature-text">File relationship mapping with import/export dependency tracking</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successArchitectureFeature" style="display: flex;">
-                                <span class="success-feature-icon">🏗️</span>
-                                <span class="success-feature-text">Architectural pattern detection with confidence scoring</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successProjectAnalysisFeature" style="display: flex;">
-                                <span class="success-feature-icon">🔍</span>
-                                <span class="success-feature-text">Comprehensive project analysis with 20+ framework detection</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successDependencyAnalysisFeature" style="display: flex;">
-                                <span class="success-feature-icon">📦</span>
-                                <span class="success-feature-text">Dependency analysis and version tracking</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successStructureAnalysisFeature" style="display: flex;">
-                                <span class="success-feature-icon">🏛️</span>
-                                <span class="success-feature-text">Intelligent project structure mapping and layer analysis</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successSmartFilteringFeature" style="display: flex;">
-                                <span class="success-feature-icon">🧠</span>
-                                <span class="success-feature-text">Smart content compression and file prioritization applied</span>
-                            </div>
-
-                            <div class="success-feature-item">
-                                <span class="success-feature-icon">📝</span>
-                                <span class="success-feature-text">AI-optimized metadata headers with project context</span>
-                            </div>
-
-                            <div class="success-feature-item">
-                                <span class="success-feature-icon">📋</span>
-                                <span class="success-feature-text">Comprehensive analysis summary with recommendations</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successCustomPromptFeature" style="display: none;">
-                                <span class="success-feature-icon">🤖</span>
-                                <span class="success-feature-text">Custom AI prompt included</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successDockerFeature" style="display: none;">
-                                <span class="success-feature-icon">🐳</span>
-                                <span class="success-feature-text">Docker files auto-included</span>
-                            </div>
-
-                            <div class="success-feature-item" id="successDependencyFeature" style="display: none;">
-                                <span class="success-feature-icon">🔗</span>
-                                <span class="success-feature-text">File dependencies auto-detected</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="success-section">
-                        <h3>🚀 Next Steps for AI Analysis</h3>
-                        <div class="success-next-steps">
-                            <div class="success-step">
-                                <div class="success-step-number">1</div>
-                                <div class="success-step-content">
-                                    <strong>Preview AI-Optimized Content</strong><br>
-                                    <span>Click "Preview Content" to view the structured, AI-ready output with metadata headers</span>
-                                </div>
-                            </div>
-                            <div class="success-step">
-                                <div class="success-step-number">2</div>
-                                <div class="success-step-content">
-                                    <strong>Follow Entry Point Order</strong><br>
-                                    <span>Start analysis with the identified entry points in priority order for logical code exploration</span>
-                                </div>
-                            </div>
-                            <div class="success-step">
-                                <div class="success-step-number">3</div>
-                                <div class="success-step-content">
-                                    <strong>Use Relationship Mapping</strong><br>
-                                    <span>Follow import/export chains and file relationships to understand system architecture</span>
-                                </div>
-                            </div>
-                            <div class="success-step">
-                                <div class="success-step-number">4</div>
-                                <div class="success-step-content">
-                                    <strong>Leverage Architectural Context</strong><br>
-                                    <span>Use detected patterns and tech stack info for context-aware AI suggestions</span>
-                                </div>
-                            </div>
-                            <div class="success-step">
-                                <div class="success-step-number">5</div>
-                                <div class="success-step-content">
-                                    <strong>Copy or Download for AI</strong><br>
-                                    <span>Use chunked content for large projects or full content for comprehensive analysis</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="successPreviewBtn">👁️ Preview AI-Optimized Content</button>
-                <button class="btn btn-secondary" id="successArchitectureBtn">🏗️ View Architecture Analysis</button>
-                <button class="btn btn-primary" id="successCloseBtn">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal hidden settings-modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>⚙️ Settings</h2>
-                <button class="close-btn" id="closeSettingsModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form class="settings-form" id="settingsForm">
-                    <div class="settings-section">
-                        <h3>📁 Default Directory</h3>
-                        <div class="form-group">
-                            <label for="defaultPath">Start Directory</label>
-                            <div class="form-input-group">
-                                <input type="text" id="defaultPath" class="form-input" placeholder="/path/to/your/project">
-                                <button type="button" class="browse-btn" id="browseDefaultPath">📁 Browse</button>
-                            </div>
-                            <div class="description">Choose the directory where the file explorer should start when launched.</div>
-                            <div class="current-status">
-                                <span class="status-indicator"></span>
-                                Current: <span id="currentDefaultPath">Not set</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3>🤖 AI Context Prompt</h3>
-                        <div class="form-group">
-                            <label for="customPrompt">Custom Text for Generated Files</label>
-                            <textarea
-                                id="customPrompt"
-                                class="form-textarea"
-                                placeholder="Enter text that will be added at the beginning of generated files (e.g., instructions for AI, project description, etc.)"
-                                rows="4"
-                            ></textarea>
-                            <div class="description">
-                                This text will be added at the beginning of every generated file collection.
-                                Use this to provide context, instructions, or descriptions when sharing with AI assistants.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3>🔧 Project Type Detection</h3>
-                        <div class="form-group">
-                            <div class="project-type-description">
-                                <p class="description">
-                                    Automatically detect and select important files based on your project type.
-                                    This feature requires a default directory to be set above.
-                                </p>
-                            </div>
-
-                            <div class="project-types-grid" id="projectTypesGrid">
-                                <div class="checkbox-group project-type-checkbox">
-                                    <input type="checkbox" id="includeDjangoFiles">
-                                    <label for="includeDjangoFiles" class="checkbox-label">
-                                        <span class="checkbox-title">🐍 Django Project</span>
-                                        <span class="checkbox-description">
-                                            Auto-include Django core files: settings.py, urls.py, models.py, views.py,
-                                            admin.py, forms.py, serializers.py, wsgi.py/asgi.py from the project directory tree.
-                                        </span>
-                                    </label>
-                                </div>
-
-                                <div class="checkbox-group project-type-checkbox">
-                                    <input type="checkbox" id="includeReactFiles">
-                                    <label for="includeReactFiles" class="checkbox-label">
-                                        <span class="checkbox-title">⚛️ React Project</span>
-                                        <span class="checkbox-description">
-                                            Auto-include React core files: package.json, src/index.js, src/main.jsx,
-                                            src/App.js, src/App.jsx from the project directory tree.
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div id="projectFilesPreview" class="project-files-preview" style="display: none;">
-                                <h4>Project files that will be included:</h4>
-                                <div id="projectFilesList" class="project-files-list"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3>🐳 Docker Integration</h3>
-                        <div class="form-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="includeDockerFiles">
-                                <label for="includeDockerFiles" class="checkbox-label">
-                                    <span class="checkbox-title">Auto-include Docker files</span>
-                                    <span class="checkbox-description">
-                                        Automatically include Docker-related files (Dockerfile, docker-compose.yml, .dockerignore, etc.)
-                                        from the parent directory and all subdirectories when generating file collections.
-                                    </span>
-                                </label>
-                            </div>
-                            <div id="dockerFilesPreview" class="docker-files-preview" style="display: none;">
-                                <h4>Docker files that will be included:</h4>
-                                <div id="dockerFilesList"></div>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
-                <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- JavaScript Modules -->
-    <script type="module" src="js/core/FileExplorer.js"></script>
+  <div class="header">
+  <div class="header-left">
+  <h1>🗂️ Local File Explorer</h1>
+  <div class="root-path" id="rootPath">
+  <span id="currentPath">Loading...</span>
+  <button class="btn" onclick="window.fileExplorer.changeRootDirectory()" style="margin-left: 8px; padding: 2px 6px; font-size: 10px;">📁 Browse</button>
+  </div>
+  </div>
+  <div class="header-right">
+  <div class="server-info">Web Server Mode</div>
+  <button class="settings-btn" id="settingsBtn">
+  ⚙️ Settings
+  </button>
+  <button class="validate-btn" id="validateBtn" disabled>
+  Validate Selection (<span id="selectedCount">0</span>)
+  </button>
+  </div>
+  </div>
+  <div class="main-container">
+  <div class="file-content">
+  <div class="content-header" id="contentHeader">
+  <span>Select a file to view its content</span>
+  <span class="file-info" id="fileInfo"></span>
+  </div>
+  <div class="content-display" id="contentDisplay">
+  <div class="empty-state">
+  <p>📁 No file selected</p>
+  <p style="font-size: 12px; margin-top: 8px;">Click on a file in the explorer to view its content</p>
+  </div>
+  </div>
+  </div>
+  <div class="resizer" id="resizer">
+  <div class="resize-indicator" id="resizeIndicator">Drag to resize</div>
+  </div>
+  <div class="file-explorer" id="fileExplorer">
+  <div class="breadcrumb" id="breadcrumb">
+  </div>
+  <div class="explorer-content">
+  <div class="file-tree" id="fileTree">
+  <div class="loading">🔄 Loading files...</div>
+  </div>
+  </div>
+  </div>
+  </div>
+  <div class="modal hidden" id="confirmModal">
+  <div class="modal-content">
+  <div class="modal-header">
+  <h2>Confirm File Selection</h2>
+  <button class="close-btn" id="closeModal">&times;</button>
+  </div>
+  <div class="modal-body">
+  <div class="summary">
+  <div class="summary-grid">
+  <div class="summary-item">
+  <div class="summary-value" id="totalFiles">0</div>
+  <div class="summary-label">Files</div>
+  </div>
+  <div class="summary-item">
+  <div class="summary-value" id="totalLines">0</div>
+  <div class="summary-label">Lines</div>
+  </div>
+  <div class="summary-item">
+  <div class="summary-value" id="totalSize">0 KB</div>
+  <div class="summary-label">Size</div>
+  </div>
+  </div>
+  <div class="progress-bar">
+  <div class="progress-fill" id="progressFill"></div>
+  </div>
+  </div>
+  <div><strong>Selected files:</strong></div>
+  <div class="file-list" id="selectedFilesList">
+  </div>
+  </div>
+  <div class="modal-footer">
+  <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+  <button class="btn btn-primary" id="confirmBtn">Generate Content</button>
+  </div>
+  </div>
+  </div>
+  <div class="modal content-modal hidden" id="contentModal">
+  <div class="modal-content">
+  <div class="modal-header">
+  <h2>📄 Generated File Content</h2>
+  <div style="display: flex; align-items: center; gap: 12px;">
+  <button class="copy-btn chunk-copy" id="copyContentBtn">📋 Copy Current</button>
+  <button class="btn btn-secondary" id="downloadAllChunks" style="display: none;">💾 Download All</button>
+  <button class="close-btn" id="closeContentModal">&times;</button>
+  </div>
+  </div>
+  <div class="modal-body">
+  <div class="content-info">
+  <div class="content-info-item">
+  <div class="content-info-value" id="contentFileCount">0</div>
+  <div class="content-info-label">Files</div>
+  </div>
+  <div class="content-info-item">
+  <div class="content-info-value" id="contentLineCount">0</div>
+  <div class="content-info-label">Lines</div>
+  </div>
+  <div class="content-info-item">
+  <div class="content-info-value" id="contentCharCount">0</div>
+  <div class="content-info-label">Characters</div>
+  </div>
+  <div class="content-info-item">
+  <div class="content-info-value" id="contentSizeCount">0 KB</div>
+  <div class="content-info-label">Size</div>
+  </div>
+  <div class="content-info-item" id="chunkInfoItem" style="display: none;">
+  <div class="content-info-value" id="currentChunkInfo">1/1</div>
+  <div class="content-info-label">Chunk</div>
+  </div>
+  </div>
+  <div class="content-display-modal" id="contentDisplayModal">
+  <pre id="generatedContent"></pre>
+  </div>
+  </div>
+  <div class="modal-footer">
+  <button class="btn btn-secondary" id="downloadContentBtn">💾 Download Current</button>
+  <button class="btn btn-secondary" id="copyAllChunksBtn" style="display: none;">📋 Copy All Chunks</button>
+  <button class="btn btn-primary" id="closeContentModal2">Close</button>
+  </div>
+  </div>
+  </div>
+  <div class="modal hidden success-modal" id="successModal">
+  <div class="modal-content">
+  <div class="modal-header">
+  <h2>✅ AI-Optimized Content Generated Successfully!</h2>
+  <button class="close-btn" id="closeSuccessModal">&times;</button>
+  </div>
+  <div class="modal-body">
+  <div class="success-sections">
+  <div class="success-section">
+  <h3>📁 Content Information</h3>
+  <div class="success-info-grid">
+  <div class="success-info-item">
+  <label>Filename:</label>
+  <div class="success-info-value" id="successFilename">-</div>
+  </div>
+  <div class="success-info-item">
+  <label>Directory:</label>
+  <div class="success-info-value" id="successDirectory">-</div>
+  </div>
+  <div class="success-info-item">
+  <label>Full Path:</label>
+  <div class="success-info-value" id="successFullPath">-</div>
+  </div>
+  <div class="success-info-item">
+  <label>Content Size:</label>
+  <div class="success-info-value" id="successFileSize">-</div>
+  </div>
+  </div>
+  <div id="successMessage" style="margin-top: 12px; padding: 8px; background: rgba(35, 134, 54, 0.1); border-radius: 4px; color: #238636; font-size: 12px; display: none;"></div>
+  </div>
+  <div class="success-section">
+  <h3>📊 Content Statistics</h3>
+  <div class="success-stats-grid">
+  <div class="success-stat-item">
+  <div class="success-stat-value" id="successTotalFiles">0</div>
+  <div class="success-stat-label">Files Included</div>
+  </div>
+  <div class="success-stat-item">
+  <div class="success-stat-value" id="successTotalLines">0</div>
+  <div class="success-stat-label">Total Lines</div>
+  </div>
+  <div class="success-stat-item">
+  <div class="success-stat-value" id="successTotalChars">0</div>
+  <div class="success-stat-label">Characters</div>
+  </div>
+  <div class="success-stat-item" id="successChunkStat" style="display: none;">
+  <div class="success-stat-value" id="successChunkCount">0</div>
+  <div class="success-stat-label">Chunks</div>
+  </div>
+  </div>
+  </div>
+  <div class="success-section" id="successEntryPointsSection">
+  <h3>🎯 Entry Points Identified</h3>
+  <div class="success-entry-points" id="successEntryPoints">
+  </div>
+  </div>
+  <div class="success-section" id="successArchitectureSection">
+  <h3>🏗️ Architecture Analysis</h3>
+  <div class="success-architecture-grid" id="successArchitecture">
+  </div>
+  </div>
+  <div class="success-section" id="successProjectTypesSection" style="display: none;">
+  <h3>🔧 Project Types Detected</h3>
+  <div class="success-project-types" id="successProjectTypes">
+  </div>
+  </div>
+  <div class="success-section">
+  <h3>✨ AI Optimization Features Applied</h3>
+  <div class="success-features" id="successFeatures">
+  <div class="success-feature-item" id="successEntryPointFeature" style="display: flex;">
+  <span class="success-feature-icon">🎯</span>
+  <span class="success-feature-text">Entry point identification and prioritization for systematic analysis</span>
+  </div>
+  <div class="success-feature-item" id="successRelationshipFeature" style="display: flex;">
+  <span class="success-feature-icon">🔗</span>
+  <span class="success-feature-text">File relationship mapping with import/export dependency tracking</span>
+  </div>
+  <div class="success-feature-item" id="successArchitectureFeature" style="display: flex;">
+  <span class="success-feature-icon">🏗️</span>
+  <span class="success-feature-text">Architectural pattern detection with confidence scoring</span>
+  </div>
+  <div class="success-feature-item" id="successProjectAnalysisFeature" style="display: flex;">
+  <span class="success-feature-icon">🔍</span>
+  <span class="success-feature-text">Comprehensive project analysis with 20+ framework detection</span>
+  </div>
+  <div class="success-feature-item" id="successDependencyAnalysisFeature" style="display: flex;">
+  <span class="success-feature-icon">📦</span>
+  <span class="success-feature-text">Dependency analysis and version tracking</span>
+  </div>
+  <div class="success-feature-item" id="successStructureAnalysisFeature" style="display: flex;">
+  <span class="success-feature-icon">🏛️</span>
+  <span class="success-feature-text">Intelligent project structure mapping and layer analysis</span>
+  </div>
+  <div class="success-feature-item" id="successSmartFilteringFeature" style="display: flex;">
+  <span class="success-feature-icon">🧠</span>
+  <span class="success-feature-text">Smart content compression and file prioritization applied</span>
+  </div>
+  <div class="success-feature-item">
+  <span class="success-feature-icon">📝</span>
+  <span class="success-feature-text">AI-optimized metadata headers with project context</span>
+  </div>
+  <div class="success-feature-item">
+  <span class="success-feature-icon">📋</span>
+  <span class="success-feature-text">Comprehensive analysis summary with recommendations</span>
+  </div>
+  <div class="success-feature-item" id="successCustomPromptFeature" style="display: none;">
+  <span class="success-feature-icon">🤖</span>
+  <span class="success-feature-text">Custom AI prompt included</span>
+  </div>
+  <div class="success-feature-item" id="successDockerFeature" style="display: none;">
+  <span class="success-feature-icon">🐳</span>
+  <span class="success-feature-text">Docker files auto-included</span>
+  </div>
+  <div class="success-feature-item" id="successDependencyFeature" style="display: none;">
+  <span class="success-feature-icon">🔗</span>
+  <span class="success-feature-text">File dependencies auto-detected</span>
+  </div>
+  </div>
+  </div>
+  <div class="success-section">
+  <h3>🚀 Next Steps for AI Analysis</h3>
+  <div class="success-next-steps">
+  <div class="success-step">
+  <div class="success-step-number">1</div>
+  <div class="success-step-content">
+  <strong>Preview AI-Optimized Content</strong><br>
+  <span>Click "Preview Content" to view the structured, AI-ready output with metadata headers</span>
+  </div>
+  </div>
+  <div class="success-step">
+  <div class="success-step-number">2</div>
+  <div class="success-step-content">
+  <strong>Follow Entry Point Order</strong><br>
+  <span>Start analysis with the identified entry points in priority order for logical code exploration</span>
+  </div>
+  </div>
+  <div class="success-step">
+  <div class="success-step-number">3</div>
+  <div class="success-step-content">
+  <strong>Use Relationship Mapping</strong><br>
+  <span>Follow import/export chains and file relationships to understand system architecture</span>
+  </div>
+  </div>
+  <div class="success-step">
+  <div class="success-step-number">4</div>
+  <div class="success-step-content">
+  <strong>Leverage Architectural Context</strong><br>
+  <span>Use detected patterns and tech stack info for context-aware AI suggestions</span>
+  </div>
+  </div>
+  <div class="success-step">
+  <div class="success-step-number">5</div>
+  <div class="success-step-content">
+  <strong>Copy or Download for AI</strong><br>
+  <span>Use chunked content for large projects or full content for comprehensive analysis</span>
+  </div>
+  </div>
+  </div>
+  </div>
+  </div>
+  <div class="modal-footer">
+  <button class="btn btn-secondary" id="successPreviewBtn">👁️ Preview AI-Optimized Content</button>
+  <button class="btn btn-secondary" id="successArchitectureBtn">🏗️ View Architecture Analysis</button>
+  <button class="btn btn-primary" id="successCloseBtn">Close</button>
+  </div>
+  </div>
+  </div>
+  <div class="modal hidden settings-modal" id="settingsModal">
+  <div class="modal-content">
+  <div class="modal-header">
+  <h2>⚙️ Settings</h2>
+  <button class="close-btn" id="closeSettingsModal">&times;</button>
+  </div>
+  <div class="modal-body">
+  <form class="settings-form" id="settingsForm">
+  <div class="settings-section">
+  <h3>📁 Default Directory</h3>
+  <div class="form-group">
+  <label for="defaultPath">Start Directory</label>
+  <div class="form-input-group">
+  <input type="text" id="defaultPath" class="form-input" placeholder="/path/to/your/project">
+  <button type="button" class="browse-btn" id="browseDefaultPath">📁 Browse</button>
+  </div>
+  <div class="description">Choose the directory where the file explorer should start when launched.</div>
+  <div class="current-status">
+  <span class="status-indicator"></span>
+  Current: <span id="currentDefaultPath">Not set</span>
+  </div>
+  </div>
+  </div>
+  <div class="settings-section">
+  <h3>🤖 AI Context Prompt</h3>
+  <div class="form-group">
+  <label for="customPrompt">Custom Text for Generated Files</label>
+  <textarea
+  id="customPrompt"
+  class="form-textarea"
+  placeholder="Enter text that will be added at the beginning of generated files (e.g., instructions for AI, project description, etc.)"
+  rows="4"
+  ></textarea>
+  <div class="description">
+  This text will be added at the beginning of every generated file collection.
+  Use this to provide context, instructions, or descriptions when sharing with AI assistants.
+  </div>
+  </div>
+  </div>
+  <div class="settings-section">
+  <h3>🔧 Project Type Detection</h3>
+  <div class="form-group">
+  <div class="project-type-description">
+  <p class="description">
+  Automatically detect and select important files based on your project type.
+  This feature requires a default directory to be set above.
+  </p>
+  </div>
+  <div class="project-types-grid" id="projectTypesGrid">
+  <div class="checkbox-group project-type-checkbox">
+  <input type="checkbox" id="includeDjangoFiles">
+  <label for="includeDjangoFiles" class="checkbox-label">
+  <span class="checkbox-title">🐍 Django Project</span>
+  <span class="checkbox-description">
+  Auto-include Django core files: settings.py, urls.py, models.py, views.py,
+  admin.py, forms.py, serializers.py, wsgi.py/asgi.py from the project directory tree.
+  </span>
+  </label>
+  </div>
+  <div class="checkbox-group project-type-checkbox">
+  <input type="checkbox" id="includeReactFiles">
+  <label for="includeReactFiles" class="checkbox-label">
+  <span class="checkbox-title">⚛️ React Project</span>
+  <span class="checkbox-description">
+  Auto-include React core files: package.json, src/index.js, src/main.jsx,
+  src/App.js, src/App.jsx from the project directory tree.
+  </span>
+  </label>
+  </div>
+  </div>
+  <div id="projectFilesPreview" class="project-files-preview" style="display: none;">
+  <h4>Project files that will be included:</h4>
+  <div id="projectFilesList" class="project-files-list"></div>
+  </div>
+  </div>
+  </div>
+  <div class="settings-section">
+  <h3>🐳 Docker Integration</h3>
+  <div class="form-group">
+  <div class="checkbox-group">
+  <input type="checkbox" id="includeDockerFiles">
+  <label for="includeDockerFiles" class="checkbox-label">
+  <span class="checkbox-title">Auto-include Docker files</span>
+  <span class="checkbox-description">
+  Automatically include Docker-related files (Dockerfile, docker-compose.yml, .dockerignore, etc.)
+  from the parent directory and all subdirectories when generating file collections.
+  </span>
+  </label>
+  </div>
+  <div id="dockerFilesPreview" class="docker-files-preview" style="display: none;">
+  <h4>Docker files that will be included:</h4>
+  <div id="dockerFilesList"></div>
+  </div>
+  </div>
+  </div>
+  </form>
+  </div>
+  <div class="modal-footer">
+  <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+  <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+  </div>
+  </div>
+  </div>
+  <script type="module" src="js/core/FileExplorer.js"></script>
 </body>
 </html>
