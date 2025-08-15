@@ -822,7 +822,8 @@ export class SemanticChunkManager {
                 startPos,
                 endPos,
                 semanticSummary: `Size-based chunk ${index + 1}`,
-                crossReferences: []
+                crossReferences: [],
+                files: new Map()
             });
 
             startPos = endPos;
