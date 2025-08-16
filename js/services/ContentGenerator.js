@@ -753,6 +753,36 @@ export class ContentGenerator {
         }
 
         // AI Analysis Instructions
+        output += 'ADAPTIVE PATTERN RECOGNITION RULES\n';
+        output += '-'.repeat(40) + '\n';
+        output += '1. OBSERVE_FIRST: Before any modification, examine the provided code examples and identify their patterns\n';
+        output += '2. DESCRIBE_PATTERNS: Briefly state what coding patterns, styles, and conventions you observe\n';
+        output += '3. MIRROR_EXAMPLES: Match the exact style, naming, and structure of existing code\n';
+        output += '4. FOLLOW_PRECEDENT: When making decisions, choose approaches that align with existing examples\n';
+        output += '5. CONSISTENCY_CHECK: Verify your solution matches the patterns you observed\n';
+        output += '6. ASK_BEFORE_DIVERGING: If you need to do something not shown in examples, ask first\n\n';
+
+        output += 'INCREMENTAL MODIFICATION RULES\n';
+        output += '-'.repeat(40) + '\n';
+        output += '1. MODIFY_DONT_REWRITE: When asked to add/change functionality, modify existing code rather than rewriting entire files\n';
+        output += '2. PRESERVE_EXISTING_FUNCTIONALITY: Keep all existing features unless explicitly asked to remove them\n';
+        output += '3. FOLLOW_ESTABLISHED_PATTERNS: Use the same patterns shown in the codebase examples\n';
+        output += '4. USE_EXISTING_UTILITIES: Leverage existing utility functions, components, and services\n';
+        output += '5. MAINTAIN_CONSISTENCY: Keep the same naming conventions, file organization, and code style\n';
+        output += '6. EXPLAIN_BRIEFLY_YOUR_PLAN: Before starting to code, explain concisely the path of the solution you will take.\n';
+        output += '7. ASK_FOR_CLARIFICATION: If existing code structure is unclear, ask before making assumptions\n\n';
+
+        // Remove the rigid PATTERN_CONSISTENCY_RULES section since it's replaced by adaptive recognition
+
+        output += 'CONTEXT_PRESERVATION_RULES\n';
+        output += '-'.repeat(40) + '\n';
+        output += '1. ANALYZE_BEFORE_MODIFYING: Understand what the existing code does before changing it\n';
+        output += '2. PRESERVE_DEPENDENCIES: Don\'t break existing relationships between components/modules\n';
+        output += '3. MAINTAIN_INTERFACES: Keep existing function signatures and component props\n';
+        output += '4. RESPECT_ARCHITECTURE: Don\'t violate the established architectural patterns\n';
+        output += '5. INCREMENTAL_TESTING: Suggest changes that can be tested incrementally\n\n';
+
+        // Rest of your existing sections remain the same...
         output += 'AI ANALYSIS INSTRUCTIONS\n';
         output += '-'.repeat(40) + '\n';
         output += 'This codebase has been optimized for AI analysis with the following features:\n';
@@ -773,13 +803,14 @@ export class ContentGenerator {
         output += '• ❌ DO NOT write code for general analysis or discussion\n';
         output += '• ❌ DO NOT provide code unless explicitly asked\n';
         output += '• ❌ DO NOT include code snippets in regular text responses\n\n';
-        output += 'Code should only be provided when the user makes requests like:\n';
-        output += '- "Write a function to..."\n';
-        output += '- "Create a component for..."\n';
-        output += '- "Generate a script that..."\n';
-        output += '- "Build a [specific feature]..."\n';
-        output += '- "Fix this bug in..."\n';
-        output += '- "Refactor this code..."\n\n';
+
+        output += 'REASONING PROCESS REQUIREMENTS\n';
+        output += '-'.repeat(40) + '\n';
+        output += 'When asked to implement something:\n';
+        output += '1. First, observe and describe the patterns you see in the provided code\n';
+        output += '2. Explain your plan and how it will maintain consistency\n';
+        output += '3. Then implement following the observed patterns exactly\n';
+        output += '4. Verify your solution matches the established patterns\n\n';
 
         if (this.fileExplorer.settingsManager.settings.customPrompt?.trim()) {
             output += 'CUSTOM ANALYSIS INSTRUCTIONS\n';
