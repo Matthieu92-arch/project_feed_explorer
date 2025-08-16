@@ -3,8 +3,9 @@ export class SemanticChunkManager {
     constructor(fileExplorer) {
         this.fileExplorer = fileExplorer;
         this.semanticChunks = [];
+        this.filesnames = [];
         this.currentChunkIndex = 0;
-        this.defaultChunkSize = 100000; // 100KB base size
+        this.defaultChunkSize = 100000;
         this.currentChunkSize = this.defaultChunkSize;
         this.fullContent = '';
         this.maxChunkSize = 0;
@@ -737,6 +738,7 @@ export class SemanticChunkManager {
         }
         
         // Convert to the format expected by the UI
+        console.log(`chunk object is created with ${this.semanticChunks.length} chunks`);
         this.fileChunks = this.semanticChunks.map(chunk => ({
             index: chunk.index,
             label: chunk.label,
@@ -764,19 +766,13 @@ export class SemanticChunkManager {
         wrappedContent += `${'='.repeat(60)}\n\n`;
         
         wrappedContent += `CHUNK METADATA:\n`;
-        wrappedContent += `- Files: ${Array.from(chunk.files.keys()).join(', ')}\n`;
+        // wrappedContent += `- Files: ${Array.from(chunk.files).join(', ')}\n`;
         wrappedContent += `- Size: ${this.formatSize(chunk.size)}\n`;
         wrappedContent += `- Semantic Summary: ${chunk.semanticSummary}\n`;
         
         if (chunk.crossReferences.length > 0) {
             wrappedContent += `- Cross-references: ${chunk.crossReferences.length} reference(s) to other chunks\n`;
         }
-        
-        wrappedContent += `\n${chunk.aiInstructions}\n\n`;
-        wrappedContent += `CODE OUTPUT RULES:\n`;
-        wrappedContent += `- Only write code when user explicitly requests it\n`;
-        wrappedContent += `- Always use code artifacts for any code/file output\n`;
-        wrappedContent += `- Do NOT write code for analysis or general questions\n\n`;
         
         wrappedContent += `CHUNK CONTENT:\n`;
         wrappedContent += `${'='.repeat(60)}\n\n`;
