@@ -753,14 +753,51 @@ export class ContentGenerator {
         }
 
         // AI Analysis Instructions
+        output += 'PROJECT CONTEXT UNDERSTANDING\n';
+        output += '-'.repeat(40) + '\n';
+        output += 'You are being provided with organized chunks from a complete software project.\n';
+        output += 'Each chunk represents carefully selected files and their relationships within this codebase.\n';
+        output += 'This is NOT random code snippets - this is a cohesive project with:\n';
+        output += '• Established patterns and conventions throughout\n';
+        output += '• Interconnected components and dependencies\n';
+        output += '• A consistent architecture and design philosophy\n';
+        output += '• Existing functionality that must be preserved\n';
+        output += '• A specific technology stack and coding style\n\n';
+        output += 'Your role is to work WITH this existing project, not impose external patterns.\n\n';
+
+        output += 'REASONING FRAMEWORK - MANDATORY PROCESS\n';
+        output += '-'.repeat(40) + '\n';
+        output += 'Before any implementation, you MUST follow this process:\n\n';
+        output += 'STEP 1 - PROJECT COMPREHENSION:\n';
+        output += '• Read through all provided chunks to understand the project scope\n';
+        output += '• Identify what type of application/system this is\n';
+        output += '• Note the main technologies and frameworks in use\n\n';
+        output += 'STEP 2 - PATTERN OBSERVATION:\n';
+        output += '• Examine how existing code is structured and organized\n';
+        output += '• Note naming conventions, file organization, and coding style\n';
+        output += '• Identify how similar functionality is already implemented\n';
+        output += '• Look for utility functions, common patterns, and established approaches\n\n';
+        output += 'STEP 3 - CONTEXT MAPPING:\n';
+        output += '• Understand how the files relate to each other\n';
+        output += '• Identify what functionality already exists that should be preserved\n';
+        output += '• Note any dependencies or imports that need to be maintained\n\n';
+        output += 'STEP 4 - SOLUTION PLANNING:\n';
+        output += '• Explain what you observed about the project and its patterns\n';
+        output += '• Describe how your solution will fit into the existing architecture\n';
+        output += '• Outline your approach and why it maintains consistency\n\n';
+        output += 'STEP 5 - IMPLEMENTATION:\n';
+        output += '• Code following the exact patterns you observed\n';
+        output += '• Preserve all existing functionality unless explicitly asked to remove it\n';
+        output += '• Use the same style, conventions, and approaches as the existing code\n\n';
+
         output += 'ADAPTIVE PATTERN RECOGNITION RULES\n';
         output += '-'.repeat(40) + '\n';
-        output += '1. OBSERVE_FIRST: Before any modification, examine the provided code examples and identify their patterns\n';
-        output += '2. DESCRIBE_PATTERNS: Briefly state what coding patterns, styles, and conventions you observe\n';
-        output += '3. MIRROR_EXAMPLES: Match the exact style, naming, and structure of existing code\n';
-        output += '4. FOLLOW_PRECEDENT: When making decisions, choose approaches that align with existing examples\n';
-        output += '5. CONSISTENCY_CHECK: Verify your solution matches the patterns you observed\n';
-        output += '6. ASK_BEFORE_DIVERGING: If you need to do something not shown in examples, ask first\n\n';
+        output += '1. TREAT_AS_SINGLE_PROJECT: All chunks are from the same cohesive codebase\n';
+        output += '2. OBSERVE_PROJECT_PATTERNS: Look across all chunks to understand the project\'s way of doing things\n';
+        output += '3. DESCRIBE_WHAT_YOU_SEE: Always state what patterns and conventions you observe\n';
+        output += '4. MIRROR_EXACTLY: Match the project\'s specific style, not generic best practices\n';
+        output += '5. CROSS_REFERENCE: Use patterns from similar functionality elsewhere in the project\n';
+        output += '6. MAINTAIN_PROJECT_COHERENCE: Your additions should feel like they belong to this specific project\n\n';
 
         output += 'INCREMENTAL MODIFICATION RULES\n';
         output += '-'.repeat(40) + '\n';
@@ -772,17 +809,23 @@ export class ContentGenerator {
         output += '6. EXPLAIN_BRIEFLY_YOUR_PLAN: Before starting to code, explain concisely the path of the solution you will take.\n';
         output += '7. ASK_FOR_CLARIFICATION: If existing code structure is unclear, ask before making assumptions\n\n';
 
-        // Remove the rigid PATTERN_CONSISTENCY_RULES section since it's replaced by adaptive recognition
-
         output += 'CONTEXT_PRESERVATION_RULES\n';
         output += '-'.repeat(40) + '\n';
-        output += '1. ANALYZE_BEFORE_MODIFYING: Understand what the existing code does before changing it\n';
-        output += '2. PRESERVE_DEPENDENCIES: Don\'t break existing relationships between components/modules\n';
-        output += '3. MAINTAIN_INTERFACES: Keep existing function signatures and component props\n';
-        output += '4. RESPECT_ARCHITECTURE: Don\'t violate the established architectural patterns\n';
-        output += '5. INCREMENTAL_TESTING: Suggest changes that can be tested incrementally\n\n';
+        output += '1. ANALYZE_PROJECT_STRUCTURE: Understand how this specific project is organized before changing anything\n';
+        output += '2. PRESERVE_PROJECT_RELATIONSHIPS: Don\'t break existing relationships between this project\'s components\n';
+        output += '3. MAINTAIN_PROJECT_INTERFACES: Keep existing function signatures and component props from this codebase\n';
+        output += '4. RESPECT_PROJECT_ARCHITECTURE: Don\'t violate the architectural patterns established in this project\n';
+        output += '5. INCREMENTAL_TESTING: Suggest changes that can be tested incrementally within this project context\n\n';
 
-        // Rest of your existing sections remain the same...
+        output += 'COMMUNICATION REQUIREMENTS\n';
+        output += '-'.repeat(40) + '\n';
+        output += 'When responding to requests:\n';
+        output += '1. Always start by acknowledging what you understand about the project and request\n';
+        output += '2. Describe the relevant patterns you observe in the provided code chunks\n';
+        output += '3. Explain how your solution will integrate with the existing project\n';
+        output += '4. Then implement following the project\'s established patterns\n';
+        output += '5. End by noting how your solution maintains project consistency\n\n';
+
         output += 'AI ANALYSIS INSTRUCTIONS\n';
         output += '-'.repeat(40) + '\n';
         output += 'This codebase has been optimized for AI analysis with the following features:\n';
@@ -799,18 +842,12 @@ export class ContentGenerator {
         output += '• ✅ Always use code artifacts for any code/file output\n';
         output += '• ✅ Only write code when the user specifically requests it\n';
         output += '• ✅ Create separate artifacts for different files/components\n';
-        output += '• ✅ Use appropriate file extensions and naming conventions\n';
+        output += '• ✅ Use appropriate file extensions and naming conventions from this project\n';
+        output += '• ✅ Follow this project\'s specific patterns and conventions\n';
         output += '• ❌ DO NOT write code for general analysis or discussion\n';
         output += '• ❌ DO NOT provide code unless explicitly asked\n';
-        output += '• ❌ DO NOT include code snippets in regular text responses\n\n';
-
-        output += 'REASONING PROCESS REQUIREMENTS\n';
-        output += '-'.repeat(40) + '\n';
-        output += 'When asked to implement something:\n';
-        output += '1. First, observe and describe the patterns you see in the provided code\n';
-        output += '2. Explain your plan and how it will maintain consistency\n';
-        output += '3. Then implement following the observed patterns exactly\n';
-        output += '4. Verify your solution matches the established patterns\n\n';
+        output += '• ❌ DO NOT include code snippets in regular text responses\n';
+        output += '• ❌ DO NOT use generic patterns - use this project\'s patterns\n\n';
 
         if (this.fileExplorer.settingsManager.settings.customPrompt?.trim()) {
             output += 'CUSTOM ANALYSIS INSTRUCTIONS\n';
@@ -818,13 +855,22 @@ export class ContentGenerator {
             output += this.fileExplorer.settingsManager.settings.customPrompt.trim() + '\n\n';
         }
 
+        output += 'SUCCESS CRITERIA\n';
+        output += '-'.repeat(40) + '\n';
+        output += 'Your response is successful when:\n';
+        output += '• You demonstrate understanding of this specific project context\n';
+        output += '• You explain your reasoning before implementing\n';
+        output += '• Your solution seamlessly integrates with existing code\n';
+        output += '• Someone reading your code cannot tell it wasn\'t written by the original developers\n';
+        output += '• All existing functionality is preserved and enhanced, never replaced\n\n';
+
         output += 'RECOMMENDED ANALYSIS APPROACH\n';
         output += '-'.repeat(40) + '\n';
         output += '1. Start with the highest-priority entry points listed above\n';
-        output += '2. Follow import/dependency chains to understand data flow\n';
-        output += '3. Review architectural patterns for design understanding\n';
-        output += '4. Examine file relationships to grasp system interactions\n';
-        output += '5. Use the technology stack info for context-aware suggestions\n';
+        output += '2. Follow import/dependency chains to understand data flow within this project\n';
+        output += '3. Review architectural patterns for this project\'s design philosophy\n';
+        output += '4. Examine file relationships to grasp this system\'s interactions\n';
+        output += '5. Use the technology stack info for project-specific context\n';
         output += '6. Provide analysis and recommendations WITHOUT writing code\n';
         output += '7. Only write code when specifically requested by the user\n\n';
 
