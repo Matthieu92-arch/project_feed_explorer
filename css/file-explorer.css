@@ -178,6 +178,28 @@
     vertical-align: middle;
 }
 
+.file-item.hidden-file {
+    opacity: 0.7;
+}
+
+.file-item.hidden-file .file-name,
+.file-item.hidden-file .name {
+    font-style: italic;
+    color: #a0aec0;
+}
+
+.file-item.hidden-file:hover {
+    opacity: 1;
+}
+
+.file-item.hidden-file::before {
+    content: '👁️';
+    position: absolute;
+    left: -16px;
+    font-size: 10px;
+    opacity: 0.5;
+}
+
 .file-icon:hover, .directory-arrow:hover {
     transform: scale(1.1);
     background: rgba(129, 199, 132, 0.1);

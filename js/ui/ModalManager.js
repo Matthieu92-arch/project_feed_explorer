@@ -481,6 +481,7 @@ export class ModalManager {
         const currentDefaultPath = document.getElementById('currentDefaultPath');
         const djangoCheckbox = document.getElementById('includeDjangoFiles');
         const reactCheckbox = document.getElementById('includeReactFiles');
+        const showHiddenCheckbox = document.getElementById('showHiddenFiles');
 
         if (!modal) {
             console.error('Settings modal not found');
@@ -494,6 +495,7 @@ export class ModalManager {
         if (currentDefaultPath) currentDefaultPath.textContent = settings.defaultPath || 'Not set';
         if (djangoCheckbox) djangoCheckbox.checked = settings.projectTypes?.django || false;
         if (reactCheckbox) reactCheckbox.checked = settings.projectTypes?.react || false;
+        if (showHiddenCheckbox) showHiddenCheckbox.checked = settings.showHiddenFiles || false;
 
         this.fileExplorer.uiManager.updateProjectTypesGridState();
         this.fileExplorer.uiManager.updateDockerFilesPreview();

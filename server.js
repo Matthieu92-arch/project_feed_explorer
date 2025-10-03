@@ -49,13 +49,19 @@ app.get('/api/cwd', (req, res) => {
 app.get('/api/directory/:path(*)', async (req, res) => {
     try {
         const dirPath = '/' + (req.params.path || '');
+        const showHidden = req.query.showHidden === 'true';
+        
         const items = await fs.readdir(dirPath, { withFileTypes: true });
         const result = [];
 
         for (const item of items) {
-            // Skip hidden files and common ignore patterns
-            if (item.name.startsWith('.') ||
-                item.name === 'node_modules' ||
+            const isHidden = item.name.startsWith('.');
+            
+            if (isHidden && !showHidden) {
+                continue;
+            }
+            
+            if (item.name === 'node_modules' ||
                 item.name === '__pycache__' ||
                 item.name.endsWith('.pyc')) {
                 continue;
@@ -67,7 +73,7 @@ app.get('/api/directory/:path(*)', async (req, res) => {
             try {
                 stats = await fs.stat(fullPath);
             } catch (error) {
-                continue; // Skip files we can't read
+                continue;
             }
 
             result.push({
@@ -75,11 +81,11 @@ app.get('/api/directory/:path(*)', async (req, res) => {
                 type: item.isDirectory() ? 'directory' : 'file',
                 path: fullPath,
                 size: stats.size,
-                modified: stats.mtime
+                modified: stats.mtime,
+                isHidden: isHidden
             });
         }
 
-        // Sort: directories first, then files, both alphabetically
         result.sort((a, b) => {
             if (a.type !== b.type) {
                 return a.type === 'directory' ? -1 : 1;
@@ -323,7 +329,12 @@ app.get('/api/settings', async (req, res) => {
         res.json({
             defaultPath: '',
             includeDockerFiles: false,
-            customPrompt: ''
+            customPrompt: '',
+            showHiddenFiles: false,
+            projectTypes: {
+                django: false,
+                react: false
+            }
         });
     }
 });
@@ -336,7 +347,8 @@ app.post('/api/settings', async (req, res) => {
         // Validate settings
         if (typeof settings.defaultPath !== 'string' ||
             typeof settings.includeDockerFiles !== 'boolean' ||
-            typeof settings.customPrompt !== 'string') {
+            typeof settings.customPrompt !== 'string' ||
+            typeof settings.showHiddenFiles !== 'boolean') {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid settings format'
@@ -363,13 +375,13 @@ app.post('/api/settings', async (req, res) => {
 
         await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
         res.json({ success: true });
-    } catch (error) {
-        console.error('Error saving settings:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to save settings'
-        });
-    }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to save settings'
+            });
+        }
 });
 
 // Find Docker files
