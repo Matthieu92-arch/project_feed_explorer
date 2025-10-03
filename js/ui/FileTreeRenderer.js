@@ -9,6 +9,9 @@ export class FileTreeRenderer {
         item.className = `file-item ${file.type}`;
         item.dataset.path = file.path;
         item.dataset.type = file.type;
+        if (file.isHidden) {
+            item.classList.add('hidden-file');
+        }
         
         // Add file extension for styling
         if (file.type === 'file') {

@@ -12,7 +12,10 @@ export class FileManager {
             const encodedSegments = pathSegments.map(segment => encodeURIComponent(segment));
             const encodedPath = encodedSegments.join('/');
             
-            const response = await fetch(`/api/directory/${encodedPath}`);
+            // NEW: Add showHidden query parameter
+            const showHidden = this.fileExplorer.settingsManager.settings.showHiddenFiles || false;
+            const response = await fetch(`/api/directory/${encodedPath}?showHidden=${showHidden}`);
+            
             const files = await response.json();
 
             const tree = document.getElementById('fileTree');
@@ -36,6 +39,7 @@ export class FileManager {
         }
     }
 
+
     async toggleDirectory(item, path) {
         const arrow = item.querySelector('.directory-arrow');
         let children = item.nextElementSibling;
@@ -57,7 +61,10 @@ export class FileManager {
                 const encodedSegments = pathSegments.map(segment => encodeURIComponent(segment));
                 const encodedPath = encodedSegments.join('/');
                 
-                const response = await fetch(`/api/directory/${encodedPath}`);
+                // NEW: Add showHidden query parameter
+                const showHidden = this.fileExplorer.settingsManager.settings.showHiddenFiles || false;
+                const response = await fetch(`/api/directory/${encodedPath}?showHidden=${showHidden}`);
+                
                 const files = await response.json();
 
                 children = document.createElement('div');

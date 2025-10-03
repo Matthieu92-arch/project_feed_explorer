@@ -78,11 +78,13 @@ export class SettingsManager {
         const customPromptTextarea = document.getElementById('customPrompt');
         const djangoCheckbox = document.getElementById('includeDjangoFiles');
         const reactCheckbox = document.getElementById('includeReactFiles');
+        const showHiddenCheckbox = document.getElementById('showHiddenFiles');
 
         const newSettings = {
             defaultPath: defaultPathInput ? defaultPathInput.value.trim() : '',
             includeDockerFiles: includeDockerCheckbox ? includeDockerCheckbox.checked : false,
             customPrompt: customPromptTextarea ? customPromptTextarea.value.trim() : '',
+            showHiddenFiles: showHiddenCheckbox ? showHiddenCheckbox.checked : false,
             projectTypes: {
                 django: djangoCheckbox ? djangoCheckbox.checked : false,
                 react: reactCheckbox ? reactCheckbox.checked : false
@@ -101,6 +103,9 @@ export class SettingsManager {
         const saved = await this.saveSettings();
         if (saved) {
             await this.handleSettingsChanges(oldSettings, newSettings);
+            if (oldSettings.showHiddenFiles !== newSettings.showHiddenFiles) {
+            await this.fileExplorer.fileManager.loadDirectory(this.fileExplorer.currentPath);
+        }
             this.fileExplorer.updateValidateButton();
             this.fileExplorer.updateVisibleCheckboxes();
             this.fileExplorer.hideSettingsModal();
